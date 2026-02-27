@@ -50,6 +50,9 @@ object AppState {
 
  val connectionStatus = AtomicReference("Idle")
 
+ @Volatile
+ var patternMode: PatternMode = PatternMode.MANUAL
+
  val maxValue: Float
   get() = ((1 shl bitDepth) - 1).toFloat()
 
@@ -113,14 +116,15 @@ object AppState {
   quantRange = 0
   drawCommands.set(emptyList())
   pending.set(false)
+  patternMode = PatternMode.MANUAL
   modeChanged = false
   connectionStatus.set("Idle")
  }
-}
 
-enum class PatternMode {
- MANUAL,
- PGEN,
- RESOLVE_SDR,
- RESOLVE_HDR
+ enum class PatternMode {
+  MANUAL,
+  PGEN,
+  RESOLVE_SDR,
+  RESOLVE_HDR
+ }
 }
