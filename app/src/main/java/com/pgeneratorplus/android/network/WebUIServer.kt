@@ -288,6 +288,7 @@ class WebUIServer(
     3 -> "HLG"
     else -> "Unknown"
    })
+   addProperty("hdrStatus", HdrController.getHdrStatus())
   }
   return jsonResponse(info)
  }
