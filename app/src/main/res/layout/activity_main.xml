@@ -132,8 +132,9 @@
       android:layout_height="match_parent"
       android:layout_weight="0.65"
       android:background="@drawable/input_background"
-      android:focusable="true"
-      android:focusableInTouchMode="true" />
+      android:spinnerMode="dialog"
+      android:prompt="@string/prompt_eotf"
+      android:focusable="true" />
     </LinearLayout>
 
     <!-- Bit Depth -->
@@ -158,8 +159,9 @@
       android:layout_height="match_parent"
       android:layout_weight="0.65"
       android:background="@drawable/input_background"
-      android:focusable="true"
-      android:focusableInTouchMode="true" />
+      android:spinnerMode="dialog"
+      android:prompt="@string/prompt_bit_depth"
+      android:focusable="true" />
     </LinearLayout>
 
     <!-- Color Format -->
@@ -184,8 +186,9 @@
       android:layout_height="match_parent"
       android:layout_weight="0.65"
       android:background="@drawable/input_background"
-      android:focusable="true"
-      android:focusableInTouchMode="true" />
+      android:spinnerMode="dialog"
+      android:prompt="@string/prompt_color_format"
+      android:focusable="true" />
     </LinearLayout>
 
     <!-- Colorimetry -->
@@ -210,8 +213,9 @@
       android:layout_height="match_parent"
       android:layout_weight="0.65"
       android:background="@drawable/input_background"
-      android:focusable="true"
-      android:focusableInTouchMode="true" />
+      android:spinnerMode="dialog"
+      android:prompt="@string/prompt_colorimetry"
+      android:focusable="true" />
     </LinearLayout>
 
     <!-- Quantization Range -->
@@ -235,8 +239,9 @@
       android:layout_height="match_parent"
       android:layout_weight="0.65"
       android:background="@drawable/input_background"
-      android:focusable="true"
-      android:focusableInTouchMode="true" />
+      android:spinnerMode="dialog"
+      android:prompt="@string/prompt_quant_range"
+      android:focusable="true" />
     </LinearLayout>
    </LinearLayout>
 

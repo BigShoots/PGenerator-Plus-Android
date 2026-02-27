@@ -17,4 +17,9 @@
  <string name="mode_8bit_hdr">8-bit HDR</string>
  <string name="mode_10bit_sdr">10-bit SDR</string>
  <string name="mode_10bit_hdr">10-bit HDR</string>
+ <string name="prompt_eotf">Select EOTF</string>
+ <string name="prompt_bit_depth">Select Bit Depth</string>
+ <string name="prompt_color_format">Select Color Format</string>
+ <string name="prompt_colorimetry">Select Colorimetry</string>
+ <string name="prompt_quant_range">Select Quantization Range</string>
 </resources>
