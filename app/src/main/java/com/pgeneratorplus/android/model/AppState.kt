@@ -51,6 +51,9 @@ object AppState {
  val connectionStatus = AtomicReference("Idle")
 
  @Volatile
+ var patternActivityActive: Boolean = false
+
+ @Volatile
  var patternMode: PatternMode = PatternMode.MANUAL
 
  val maxValue: Float
@@ -116,6 +119,7 @@ object AppState {
   quantRange = 0
   drawCommands.set(emptyList())
   pending.set(false)
+  patternActivityActive = false
   patternMode = PatternMode.MANUAL
   modeChanged = false
   connectionStatus.set("Idle")

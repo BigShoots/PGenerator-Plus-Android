@@ -98,6 +98,7 @@ class PatternActivity : AppCompatActivity() {
  override fun onResume() {
   super.onResume()
   glView.onResume()
+  AppState.patternActivityActive = true
 
   // Apply all signal settings to AppState
   AppState.bitDepth = bitDepth
@@ -121,6 +122,7 @@ class PatternActivity : AppCompatActivity() {
  }
 
  override fun onPause() {
+  AppState.patternActivityActive = false
   stopServers()
   glView.onPause()
 

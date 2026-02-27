@@ -1,6 +1,7 @@
 package com.pgeneratorplus.android.network
 
 import android.content.Context
+import android.content.Intent
 import android.os.Build
 import android.os.SystemClock
 import android.util.Log
@@ -70,6 +71,30 @@ class WebUIServer(
 
  private val gson = Gson()
  private var cachedHtml: String? = null
+
+ /**
+  * Launch PatternActivity in PGen mode if not already active.
+  * Called when Apply/Restart/Pattern is triggered from the WebUI.
+  */
+ private fun launchPatternActivity() {
+  if (AppState.patternActivityActive) return
+  try {
+   val intent = Intent(context, com.pgeneratorplus.android.PatternActivity::class.java).apply {
+    putExtra("mode", "pgen")
+    putExtra("hdr", AppState.hdr)
+    putExtra("bits", AppState.bitDepth)
+    putExtra("eotf", AppState.eotf)
+    putExtra("colorFormat", AppState.colorFormat)
+    putExtra("colorimetry", AppState.colorimetry)
+    putExtra("quantRange", AppState.quantRange)
+    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+   }
+   context.startActivity(intent)
+   Log.i(TAG, "Launched PatternActivity from WebUI")
+  } catch (e: Exception) {
+   Log.e(TAG, "Failed to launch PatternActivity", e)
+  }
+ }
 
  override fun serve(session: IHTTPSession): Response {
   val uri = session.uri
@@ -197,6 +222,9 @@ class WebUIServer(
   if (AppState.maxCLL > 0) {
    HdrController.setHdrMetadata(AppState.maxCLL, AppState.maxFALL, AppState.maxDML)
   }
+
+  // Auto-launch pattern generator
+  launchPatternActivity()
 
   val result = JsonObject().apply {
    addProperty("status", "ok")
@@ -361,6 +389,9 @@ class WebUIServer(
    else -> return jsonError(400, "Unknown pattern: $patternName")
   }
 
+  // Auto-launch pattern generator if not running
+  launchPatternActivity()
+
   val result = JsonObject().apply { addProperty("status", "ok") }
   return jsonResponse(result)
  }
@@ -376,6 +407,9 @@ class WebUIServer(
    HdrController.setHdrMetadata(AppState.maxCLL, AppState.maxFALL, AppState.maxDML)
   }
   AppState.modeChanged = true
+
+  // Auto-launch pattern generator
+  launchPatternActivity()
 
   val result = JsonObject().apply {
    addProperty("status", "ok")
