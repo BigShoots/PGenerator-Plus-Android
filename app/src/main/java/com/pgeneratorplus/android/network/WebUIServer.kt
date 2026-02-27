@@ -34,6 +34,38 @@ class WebUIServer(
 
  companion object {
   private const val TAG = "WebUIServer"
+
+  @Volatile
+  private var instance: WebUIServer? = null
+
+  /**
+   * Get or create and start the singleton WebUI server.
+   * Safe to call multiple times — returns existing instance if alive.
+   */
+  @Synchronized
+  fun startInstance(context: Context, port: Int = 8080): WebUIServer? {
+   instance?.let {
+    if (it.isAlive) return it
+   }
+   return try {
+    WebUIServer(context.applicationContext, port).also {
+     it.start()
+     instance = it
+     Log.i(TAG, "WebUI server started on port $port")
+    }
+   } catch (e: Exception) {
+    Log.e(TAG, "Failed to start WebUI server", e)
+    null
+   }
+  }
+
+  @Synchronized
+  fun stopInstance() {
+   try { instance?.stop() } catch (e: Exception) {}
+   instance = null
+  }
+
+  fun isRunning(): Boolean = instance?.isAlive == true
  }
 
  private val gson = Gson()

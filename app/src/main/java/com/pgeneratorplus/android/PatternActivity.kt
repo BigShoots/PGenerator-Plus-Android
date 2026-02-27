@@ -38,8 +38,6 @@ class PatternActivity : AppCompatActivity() {
  private var pgenServer: PGenServer? = null
  private var upgciServer: UPGCIServer? = null
  private var resolveClient: ResolveClient? = null
- private var discoveryService: DiscoveryService? = null
- private var webUIServer: WebUIServer? = null
 
  private var pgenThread: Thread? = null
  private var upgciThread: Thread? = null
@@ -48,6 +46,10 @@ class PatternActivity : AppCompatActivity() {
  private var mode: String = "pgen"
  private var isHdr = false
  private var bitDepth = 8
+ private var eotf = 0
+ private var colorFormat = 0
+ private var colorimetry = 0
+ private var quantRange = 0
 
  override fun onCreate(savedInstanceState: Bundle?) {
   super.onCreate(savedInstanceState)
@@ -81,23 +83,38 @@ class PatternActivity : AppCompatActivity() {
   mode = intent.getStringExtra("mode") ?: "pgen"
   isHdr = intent.getBooleanExtra("hdr", false)
   bitDepth = intent.getIntExtra("bits", 8)
+  eotf = intent.getIntExtra("eotf", 0)
+  colorFormat = intent.getIntExtra("colorFormat", 0)
+  colorimetry = intent.getIntExtra("colorimetry", 0)
+  quantRange = intent.getIntExtra("quantRange", 0)
 
   HdrController.keepScreenOn(this, true)
 
-  Log.i(TAG, "Starting in $mode mode (${bitDepth}-bit ${if (isHdr) "HDR" else "SDR"})")
+  Log.i(TAG, "Starting in $mode mode (${bitDepth}-bit " +
+   "${if (isHdr) "HDR" else "SDR"} EOTF=$eotf " +
+   "color=$colorFormat colorimetry=$colorimetry range=$quantRange)")
  }
 
  override fun onResume() {
   super.onResume()
   glView.onResume()
 
-  // Apply HDR mode
+  // Apply all signal settings to AppState
+  AppState.bitDepth = bitDepth
+  AppState.hdr = isHdr
+  AppState.eotf = eotf
+  AppState.colorFormat = colorFormat
+  AppState.colorimetry = colorimetry
+  AppState.quantRange = quantRange
+  AppState.modeChanged = true
+
+  // Apply HDR mode and signal settings via HdrController
   if (isHdr) {
    HdrController.setHdrMode(true, this)
-   AppState.setMode(bitDepth, true)
-   AppState.modeChanged = true
+   HdrController.applySignalSettings(eotf, colorFormat, colorimetry, bitDepth)
   } else {
-   AppState.setMode(bitDepth, false)
+   HdrController.setHdrMode(false, this)
+   HdrController.applySignalSettings(0, colorFormat, colorimetry, bitDepth)
   }
 
   startServers()
@@ -133,16 +150,11 @@ class PatternActivity : AppCompatActivity() {
  }
 
  private fun startPGenMode() {
-  // Start discovery service
-  discoveryService = DiscoveryService("PGeneratorPlus-Android").also { it.start() }
+  // Ensure discovery service is running (uses singleton — safe if already started)
+  DiscoveryService.startInstance("PGeneratorPlus-Android")
 
-  // Start Web UI server
-  try {
-   webUIServer = WebUIServer(this, 8080).also { it.start() }
-   Log.i(TAG, "Web UI server started on port 8080")
-  } catch (e: Exception) {
-   Log.e(TAG, "Failed to start Web UI server", e)
-  }
+  // Ensure Web UI server is running (uses singleton — safe if already started)
+  WebUIServer.startInstance(this, 8080)
 
   // Start PGen server
   pgenServer = PGenServer(isHdr)
@@ -156,6 +168,9 @@ class PatternActivity : AppCompatActivity() {
     isHdr = hdr
     bitDepth = bits
     HdrController.setHdrMode(hdr, this)
+    if (hdr) {
+     HdrController.applySignalSettings(AppState.eotf, AppState.colorFormat, AppState.colorimetry, bits)
+    }
    }
   }
   upgciThread = Thread({
@@ -200,9 +215,8 @@ class PatternActivity : AppCompatActivity() {
   pgenServer?.stop()
   upgciServer?.stop()
   resolveClient?.stop()
-  discoveryService?.stop()
 
-  try { webUIServer?.stop() } catch (e: Exception) {}
+  // Don't stop WebUI or Discovery — they're singletons managed by MainActivity
 
   pgenThread?.interrupt()
   upgciThread?.interrupt()
@@ -215,13 +229,11 @@ class PatternActivity : AppCompatActivity() {
   pgenServer = null
   upgciServer = null
   resolveClient = null
-  discoveryService = null
-  webUIServer = null
   pgenThread = null
   upgciThread = null
   resolveThread = null
 
   AppState.setCommands(emptyList())
-  Log.i(TAG, "All servers stopped")
+  Log.i(TAG, "Servers stopped")
  }
 }

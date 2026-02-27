@@ -119,12 +119,10 @@ object HdrController {
   if (isAmlogicDevice()) {
    if (hdr) {
     writeSysfs(HDR_MODE_PATH, "1")
-    writeSysfs(ATTR_PATH, "444,10bit")
-    Log.i(TAG, "Amlogic HDR mode enabled (444, 10bit)")
+    Log.i(TAG, "Amlogic HDR mode enabled")
    } else {
     writeSysfs(HDR_MODE_PATH, "0")
-    writeSysfs(ATTR_PATH, "444,8bit")
-    Log.i(TAG, "Amlogic HDR mode disabled (444, 8bit)")
+    Log.i(TAG, "Amlogic HDR mode disabled")
    }
   }
 
@@ -141,6 +139,53 @@ object HdrController {
      Log.i(TAG, "Window color mode set to ${if (hdr) "HDR" else "Default"}")
     } catch (e: Exception) {
      Log.e(TAG, "Failed to set window color mode", e)
+    }
+   }
+  }
+ }
+
+ /**
+  * Apply comprehensive signal settings for HDMI output.
+  *
+  * On Amlogic devices, writes to sysfs to configure:
+  * - Color format (RGB, YCbCr 444, 422, 420)
+  * - Bit depth (8, 10, 12)
+  * - HDR mode based on EOTF
+  * - Colorimetry (BT.709, BT.2020)
+  *
+  * @param eotf EOTF transfer function: 0=SDR, 2=PQ, 3=HLG
+  * @param colorFormat Color format: 0=RGB, 1=YCbCr444, 2=YCbCr422
+  * @param colorimetry Colorimetry: 0=BT.709, 1=BT.2020
+  * @param bitDepth Bit depth: 8, 10, or 12
+  */
+ fun applySignalSettings(eotf: Int, colorFormat: Int, colorimetry: Int, bitDepth: Int) {
+  Log.i(TAG, "Applying signal settings: EOTF=$eotf colorFormat=$colorFormat " +
+   "colorimetry=$colorimetry bitDepth=$bitDepth")
+
+  if (isAmlogicDevice()) {
+   // Build the color format string for Amlogic attr sysfs
+   val formatStr = when (colorFormat) {
+    0 -> "rgb"
+    1 -> "444"
+    2 -> "422"
+    else -> "rgb"
+   }
+   val attr = "$formatStr,${bitDepth}bit"
+   writeSysfs(ATTR_PATH, attr)
+   Log.i(TAG, "Amlogic attr set to $attr")
+
+   // Set HDR mode based on EOTF
+   when (eotf) {
+    0 -> { // SDR
+     writeSysfs(HDR_MODE_PATH, "0")
+    }
+    2 -> { // PQ (HDR10)
+     writeSysfs(HDR_MODE_PATH, "1")
+     // Set default HDR10 metadata with BT.2020 primaries
+     setHdrMetadata(1000, 400, 1000)
+    }
+    3 -> { // HLG
+     writeSysfs(HDR_MODE_PATH, "2")
     }
    }
   }

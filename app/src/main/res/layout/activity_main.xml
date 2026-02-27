@@ -83,7 +83,7 @@
    </LinearLayout>
   </LinearLayout>
 
-  <!-- CENTER COLUMN: Mode + Servers -->
+  <!-- CENTER COLUMN: Signal Settings + Start Button -->
   <LinearLayout
    android:layout_width="0dp"
    android:layout_height="match_parent"
@@ -91,45 +91,173 @@
    android:orientation="vertical"
    android:layout_marginEnd="8dp">
 
-   <!-- Signal Mode -->
+   <!-- Signal Settings -->
    <LinearLayout
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:orientation="vertical"
     android:background="@drawable/card_background"
     android:padding="10dp"
-    android:layout_marginBottom="8dp">
+    android:layout_marginBottom="6dp">
 
     <TextView
      android:layout_width="wrap_content"
      android:layout_height="wrap_content"
-     android:text="SIGNAL MODE"
+     android:text="SIGNAL SETTINGS"
      android:textColor="#8b949e"
      android:textSize="10sp"
      android:textStyle="bold"
      android:letterSpacing="0.1"
      android:layout_marginBottom="4dp" />
 
-    <Spinner
-     android:id="@+id/spinnerMode"
+    <!-- EOTF -->
+    <LinearLayout
      android:layout_width="match_parent"
-     android:layout_height="36dp"
-     android:background="@drawable/input_background"
-     android:focusable="true"
-     android:focusableInTouchMode="true" />
+     android:layout_height="30dp"
+     android:orientation="horizontal"
+     android:gravity="center_vertical"
+     android:layout_marginBottom="3dp">
+
+     <TextView
+      android:layout_width="0dp"
+      android:layout_height="wrap_content"
+      android:layout_weight="0.35"
+      android:text="EOTF"
+      android:textColor="#8b949e"
+      android:textSize="10sp" />
+
+     <Spinner
+      android:id="@+id/spinnerEotf"
+      android:layout_width="0dp"
+      android:layout_height="match_parent"
+      android:layout_weight="0.65"
+      android:background="@drawable/input_background"
+      android:focusable="true"
+      android:focusableInTouchMode="true" />
+    </LinearLayout>
+
+    <!-- Bit Depth -->
+    <LinearLayout
+     android:layout_width="match_parent"
+     android:layout_height="30dp"
+     android:orientation="horizontal"
+     android:gravity="center_vertical"
+     android:layout_marginBottom="3dp">
+
+     <TextView
+      android:layout_width="0dp"
+      android:layout_height="wrap_content"
+      android:layout_weight="0.35"
+      android:text="Bit Depth"
+      android:textColor="#8b949e"
+      android:textSize="10sp" />
+
+     <Spinner
+      android:id="@+id/spinnerBitDepth"
+      android:layout_width="0dp"
+      android:layout_height="match_parent"
+      android:layout_weight="0.65"
+      android:background="@drawable/input_background"
+      android:focusable="true"
+      android:focusableInTouchMode="true" />
+    </LinearLayout>
+
+    <!-- Color Format -->
+    <LinearLayout
+     android:layout_width="match_parent"
+     android:layout_height="30dp"
+     android:orientation="horizontal"
+     android:gravity="center_vertical"
+     android:layout_marginBottom="3dp">
+
+     <TextView
+      android:layout_width="0dp"
+      android:layout_height="wrap_content"
+      android:layout_weight="0.35"
+      android:text="Color"
+      android:textColor="#8b949e"
+      android:textSize="10sp" />
+
+     <Spinner
+      android:id="@+id/spinnerColorFormat"
+      android:layout_width="0dp"
+      android:layout_height="match_parent"
+      android:layout_weight="0.65"
+      android:background="@drawable/input_background"
+      android:focusable="true"
+      android:focusableInTouchMode="true" />
+    </LinearLayout>
+
+    <!-- Colorimetry -->
+    <LinearLayout
+     android:layout_width="match_parent"
+     android:layout_height="30dp"
+     android:orientation="horizontal"
+     android:gravity="center_vertical"
+     android:layout_marginBottom="3dp">
+
+     <TextView
+      android:layout_width="0dp"
+      android:layout_height="wrap_content"
+      android:layout_weight="0.35"
+      android:text="Gamut"
+      android:textColor="#8b949e"
+      android:textSize="10sp" />
+
+     <Spinner
+      android:id="@+id/spinnerColorimetry"
+      android:layout_width="0dp"
+      android:layout_height="match_parent"
+      android:layout_weight="0.65"
+      android:background="@drawable/input_background"
+      android:focusable="true"
+      android:focusableInTouchMode="true" />
+    </LinearLayout>
+
+    <!-- Quantization Range -->
+    <LinearLayout
+     android:layout_width="match_parent"
+     android:layout_height="30dp"
+     android:orientation="horizontal"
+     android:gravity="center_vertical">
+
+     <TextView
+      android:layout_width="0dp"
+      android:layout_height="wrap_content"
+      android:layout_weight="0.35"
+      android:text="Range"
+      android:textColor="#8b949e"
+      android:textSize="10sp" />
+
+     <Spinner
+      android:id="@+id/spinnerQuantRange"
+      android:layout_width="0dp"
+      android:layout_height="match_parent"
+      android:layout_weight="0.65"
+      android:background="@drawable/input_background"
+      android:focusable="true"
+      android:focusableInTouchMode="true" />
+    </LinearLayout>
    </LinearLayout>
 
    <!-- PGen Server -->
    <Button
     android:id="@+id/btnStartPGen"
     android:layout_width="match_parent"
-    android:layout_height="40dp"
+    android:layout_height="38dp"
     android:text="Start Pattern Generator"
     android:textColor="#ffffff"
     android:textSize="12sp"
     android:background="@drawable/btn_action"
-    android:focusable="true"
-    android:layout_marginBottom="8dp" />
+    android:focusable="true" />
+  </LinearLayout>
+
+  <!-- RIGHT COLUMN: Resolve + Patterns -->
+  <LinearLayout
+   android:layout_width="0dp"
+   android:layout_height="match_parent"
+   android:layout_weight="1"
+   android:orientation="vertical">
 
    <!-- Resolve Client -->
    <LinearLayout
@@ -137,7 +265,8 @@
     android:layout_height="wrap_content"
     android:orientation="vertical"
     android:background="@drawable/card_background"
-    android:padding="10dp">
+    android:padding="10dp"
+    android:layout_marginBottom="6dp">
 
     <TextView
      android:layout_width="wrap_content"
@@ -153,19 +282,19 @@
      android:layout_width="match_parent"
      android:layout_height="wrap_content"
      android:orientation="horizontal"
-     android:layout_marginBottom="6dp">
+     android:layout_marginBottom="4dp">
 
      <EditText
       android:id="@+id/etResolveIp"
       android:layout_width="0dp"
-      android:layout_height="34dp"
+      android:layout_height="30dp"
       android:layout_weight="2"
       android:hint="Server IP"
       android:textColor="#e6edf3"
       android:textColorHint="#8b949e"
       android:background="@drawable/input_background"
       android:padding="6dp"
-      android:textSize="12sp"
+      android:textSize="11sp"
       android:inputType="text"
       android:focusable="true"
       android:focusableInTouchMode="true"
@@ -174,14 +303,14 @@
      <EditText
       android:id="@+id/etResolvePort"
       android:layout_width="0dp"
-      android:layout_height="34dp"
+      android:layout_height="30dp"
       android:layout_weight="1"
       android:hint="20002"
       android:textColor="#e6edf3"
       android:textColorHint="#8b949e"
       android:background="@drawable/input_background"
       android:padding="6dp"
-      android:textSize="12sp"
+      android:textSize="11sp"
       android:inputType="number"
       android:focusable="true"
       android:focusableInTouchMode="true" />
@@ -190,76 +319,76 @@
     <Button
      android:id="@+id/btnStartResolve"
      android:layout_width="match_parent"
-     android:layout_height="36dp"
+     android:layout_height="32dp"
      android:text="Connect"
      android:textColor="#ffffff"
-     android:textSize="12sp"
+     android:textSize="11sp"
      android:background="@drawable/btn_action"
      android:focusable="true" />
    </LinearLayout>
-  </LinearLayout>
 
-  <!-- RIGHT COLUMN: Built-in Patterns -->
-  <LinearLayout
-   android:layout_width="0dp"
-   android:layout_height="match_parent"
-   android:layout_weight="1"
-   android:orientation="vertical"
-   android:background="@drawable/card_background"
-   android:padding="10dp">
-
-   <TextView
-    android:layout_width="wrap_content"
-    android:layout_height="wrap_content"
-    android:text="BUILT-IN PATTERNS"
-    android:textColor="#8b949e"
-    android:textSize="10sp"
-    android:textStyle="bold"
-    android:letterSpacing="0.1"
-    android:layout_marginBottom="6dp" />
-
-   <Button
-    android:id="@+id/btnPluge"
+   <!-- Built-in Patterns -->
+   <LinearLayout
     android:layout_width="match_parent"
-    android:layout_height="36dp"
-    android:text="PLUGE"
-    android:textColor="#e6edf3"
-    android:textSize="12sp"
-    android:background="@drawable/btn_pattern"
-    android:focusable="true"
-    android:layout_marginBottom="4dp" />
+    android:layout_height="0dp"
+    android:layout_weight="1"
+    android:orientation="vertical"
+    android:background="@drawable/card_background"
+    android:padding="10dp">
 
-   <Button
-    android:id="@+id/btnBars"
-    android:layout_width="match_parent"
-    android:layout_height="36dp"
-    android:text="Color Bars"
-    android:textColor="#e6edf3"
-    android:textSize="12sp"
-    android:background="@drawable/btn_pattern"
-    android:focusable="true"
-    android:layout_marginBottom="4dp" />
+    <TextView
+     android:layout_width="wrap_content"
+     android:layout_height="wrap_content"
+     android:text="BUILT-IN PATTERNS"
+     android:textColor="#8b949e"
+     android:textSize="10sp"
+     android:textStyle="bold"
+     android:letterSpacing="0.1"
+     android:layout_marginBottom="4dp" />
 
-   <Button
-    android:id="@+id/btnWindow"
-    android:layout_width="match_parent"
-    android:layout_height="36dp"
-    android:text="Window"
-    android:textColor="#e6edf3"
-    android:textSize="12sp"
-    android:background="@drawable/btn_pattern"
-    android:focusable="true"
-    android:layout_marginBottom="4dp" />
+    <Button
+     android:id="@+id/btnPluge"
+     android:layout_width="match_parent"
+     android:layout_height="32dp"
+     android:text="PLUGE"
+     android:textColor="#e6edf3"
+     android:textSize="11sp"
+     android:background="@drawable/btn_pattern"
+     android:focusable="true"
+     android:layout_marginBottom="3dp" />
 
-   <Button
-    android:id="@+id/btnRamp"
-    android:layout_width="match_parent"
-    android:layout_height="36dp"
-    android:text="Grayscale Ramp"
-    android:textColor="#e6edf3"
-    android:textSize="12sp"
-    android:background="@drawable/btn_pattern"
-    android:focusable="true" />
+    <Button
+     android:id="@+id/btnBars"
+     android:layout_width="match_parent"
+     android:layout_height="32dp"
+     android:text="Color Bars"
+     android:textColor="#e6edf3"
+     android:textSize="11sp"
+     android:background="@drawable/btn_pattern"
+     android:focusable="true"
+     android:layout_marginBottom="3dp" />
+
+    <Button
+     android:id="@+id/btnWindow"
+     android:layout_width="match_parent"
+     android:layout_height="32dp"
+     android:text="Window"
+     android:textColor="#e6edf3"
+     android:textSize="11sp"
+     android:background="@drawable/btn_pattern"
+     android:focusable="true"
+     android:layout_marginBottom="3dp" />
+
+    <Button
+     android:id="@+id/btnRamp"
+     android:layout_width="match_parent"
+     android:layout_height="32dp"
+     android:text="Grayscale Ramp"
+     android:textColor="#e6edf3"
+     android:textSize="11sp"
+     android:background="@drawable/btn_pattern"
+     android:focusable="true" />
+   </LinearLayout>
   </LinearLayout>
 
  </LinearLayout>

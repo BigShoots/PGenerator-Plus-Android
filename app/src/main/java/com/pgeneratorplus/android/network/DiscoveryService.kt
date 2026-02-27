@@ -21,6 +21,28 @@ class DiscoveryService(
   private const val TAG = "DiscoveryService"
   const val UDP_PORT = 1977
   private const val MAX_BUFFER_SIZE = 1024
+
+  @Volatile
+  private var instance: DiscoveryService? = null
+
+  @Synchronized
+  fun startInstance(hostname: String = "PGeneratorPlus-Android"): DiscoveryService {
+   instance?.let {
+    if (it.active.get()) return it
+   }
+   return DiscoveryService(hostname).also {
+    it.start()
+    instance = it
+   }
+  }
+
+  @Synchronized
+  fun stopInstance() {
+   instance?.stop()
+   instance = null
+  }
+
+  fun isRunning(): Boolean = instance?.active?.get() == true
  }
 
  private val active = AtomicBoolean(false)
