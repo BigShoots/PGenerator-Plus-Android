@@ -128,6 +128,8 @@ class PatternActivity : AppCompatActivity() {
 
   if (isHdr) {
    HdrController.setHdrMode(false, this)
+   // Restore SDR on HDMI output
+   HdrController.applySignalSettings(0, colorFormat, colorimetry, bitDepth)
   }
 
   HdrController.keepScreenOn(this, false)

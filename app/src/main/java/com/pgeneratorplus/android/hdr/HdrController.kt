@@ -65,21 +65,30 @@ object HdrController {
   * Check if this is an Amlogic-based device.
   */
  fun isAmlogicDevice(): Boolean {
-  if (File(AMHDMITX_PATH).exists()) return true
+  val sysfsExists = File(AMHDMITX_PATH).exists()
+  if (sysfsExists) {
+   Log.d(TAG, "isAmlogicDevice: true (sysfs path exists)")
+   return true
+  }
 
   try {
    val hardware = getSystemProperty("ro.hardware") ?: ""
    val platform = getSystemProperty("ro.board.platform") ?: ""
+   Log.d(TAG, "isAmlogicDevice: hardware='$hardware' platform='$platform'")
    if (hardware.contains("amlogic", ignoreCase = true) ||
     platform.contains("amlogic", ignoreCase = true) ||
     platform.startsWith("meson", ignoreCase = true) ||
     platform.startsWith("gx", ignoreCase = true) ||
     platform == "sabrina" || platform == "sm1" || platform == "sc2"
    ) {
+    Log.d(TAG, "isAmlogicDevice: true (property match)")
     return true
    }
-  } catch (e: Exception) { }
+  } catch (e: Exception) {
+   Log.w(TAG, "isAmlogicDevice: exception checking properties", e)
+  }
 
+  Log.d(TAG, "isAmlogicDevice: false")
   return false
  }
 
@@ -223,6 +232,10 @@ object HdrController {
    // Verify the switch
    val status = readSysfs(HDR_STATUS_PATH)
    Log.i(TAG, "HDMI HDR status after apply: $status")
+
+   // Also verify attr
+   val currentAttr = readSysfs(ATTR_PATH)
+   Log.i(TAG, "HDMI attr after apply: $currentAttr")
   }
  }
 
@@ -275,21 +288,34 @@ object HdrController {
   * Falls back to Android DisplayMetrics.
   */
  fun getDisplayResolution(context: Context): Pair<Int, Int> {
-  if (isAmlogicDevice()) {
+  val isAmlogic = isAmlogicDevice()
+  Log.i(TAG, "getDisplayResolution: isAmlogic=$isAmlogic")
+
+  if (isAmlogic) {
    // Primary: /sys/class/display/mode returns e.g. "2160p60hz", "1080p60hz"
    val mode = readSysfs(DISPLAY_MODE_PATH)
+   Log.i(TAG, "getDisplayResolution: display/mode='$mode'")
    if (mode.isNotEmpty()) {
     val res = parseDisplayMode(mode)
-    if (res != null) return res
+    if (res != null) {
+     Log.i(TAG, "getDisplayResolution: parsed ${res.first}x${res.second} from mode='$mode'")
+     return res
+    } else {
+     Log.w(TAG, "getDisplayResolution: failed to parse mode='$mode'")
+    }
    }
 
    // Fallback: parse VIC from config
    val config = readSysfs(CONFIG_PATH)
+   Log.i(TAG, "getDisplayResolution: config='$config'")
    val vicMatch = Regex("cur_VIC:\\s*(\\d+)").find(config)
    if (vicMatch != null) {
     val vic = vicMatch.groupValues[1].toIntOrNull() ?: 0
     val res = vicToResolution(vic)
-    if (res != null) return res
+    if (res != null) {
+     Log.i(TAG, "getDisplayResolution: VIC $vic → ${res.first}x${res.second}")
+     return res
+    }
    }
   }
 
@@ -299,6 +325,7 @@ object HdrController {
    val display = wm.defaultDisplay
    val metrics = android.util.DisplayMetrics()
    display.getRealMetrics(metrics)
+   Log.i(TAG, "getDisplayResolution: Android fallback ${metrics.widthPixels}x${metrics.heightPixels}")
    return Pair(metrics.widthPixels, metrics.heightPixels)
   } catch (e: Exception) {
    Log.e(TAG, "Failed to get display resolution", e)
@@ -374,41 +401,123 @@ object HdrController {
   }
  }
 
+ /**
+  * Read a sysfs file. Tries direct File read first, then sh, then su.
+  */
  private fun readSysfs(path: String): String {
-  return try {
+  // Try direct file read
+  try {
    val file = File(path)
    if (file.exists() && file.canRead()) {
-    file.readText().trim()
-   } else {
-    execCommand("cat $path")?.trim() ?: ""
+    val value = file.readText().trim()
+    if (value.isNotEmpty()) {
+     Log.d(TAG, "Read $path (direct): $value")
+     return value
+    }
    }
-  } catch (e: Exception) {
-   ""
-  }
+  } catch (_: Exception) { }
+
+  // Try via sh
+  try {
+   val result = shellExec(arrayOf("sh", "-c", "cat $path"))
+   if (result != null) {
+    Log.d(TAG, "Read $path (sh): $result")
+    return result.trim()
+   }
+  } catch (_: Exception) { }
+
+  // Try via su
+  try {
+   val result = suExec("cat $path")
+   if (result != null) {
+    Log.d(TAG, "Read $path (su): $result")
+    return result.trim()
+   }
+  } catch (_: Exception) { }
+
+  Log.w(TAG, "Failed to read $path")
+  return ""
  }
 
+ /**
+  * Write a value to a sysfs file. The critical fix: must use su to spawn
+  * a root shell that interprets the > redirect, because Runtime.exec()
+  * does not use a shell and the app process (untrusted_app SELinux context)
+  * cannot write to sysfs directly even on rooted devices.
+  */
  private fun writeSysfs(path: String, value: String) {
+  // Always try su first — app process cannot write to sysfs directly
+  // su -c spawns a root shell that interprets the redirect properly
+  val suResult = suExec("echo '$value' > $path")
+  if (suResult != null) {
+   Log.i(TAG, "Wrote '$value' to $path (su)")
+   return
+  }
+
+  // Fallback: try direct file write (unlikely to work from app context)
   try {
    val file = File(path)
    if (file.exists() && file.canWrite()) {
     file.writeText(value)
-    Log.d(TAG, "Wrote '$value' to $path (direct)")
-   } else {
-    // Try with su for rooted devices
-    val result = execCommand("echo '$value' > $path")
-    if (result != null) {
-     Log.d(TAG, "Wrote '$value' to $path (via su)")
-    } else {
-     Log.w(TAG, "Failed to write '$value' to $path (no root?)")
-    }
+    Log.i(TAG, "Wrote '$value' to $path (direct)")
+    return
    }
+  } catch (_: Exception) { }
+
+  // Fallback: try sh (unlikely to work from app context)
+  try {
+   val result = shellExec(arrayOf("sh", "-c", "echo '$value' > $path"))
+   if (result != null) {
+    Log.i(TAG, "Wrote '$value' to $path (sh)")
+    return
+   }
+  } catch (_: Exception) { }
+
+  Log.e(TAG, "FAILED to write '$value' to $path — no working write method")
+ }
+
+ /**
+  * Execute a command via su (root). Uses ProcessBuilder to spawn su as
+  * an interactive shell and writes the command to its stdin, which ensures
+  * shell redirects (>) are interpreted by the root shell process.
+  */
+ private fun suExec(command: String): String? {
+  return try {
+   val process = ProcessBuilder("su")
+    .redirectErrorStream(true)
+    .start()
+
+   // Write command to su's stdin so the redirect is interpreted by su's shell
+   process.outputStream.bufferedWriter().use { writer ->
+    writer.write(command)
+    writer.newLine()
+    writer.write("exit")
+    writer.newLine()
+    writer.flush()
+   }
+
+   val output = process.inputStream.bufferedReader().readText().trim()
+   val exitCode = process.waitFor()
+   Log.d(TAG, "suExec($command) → exit=$exitCode output='$output'")
+
+   if (exitCode == 0) output else null
   } catch (e: Exception) {
-   // Try with su as fallback
-   try {
-    execCommand("echo '$value' > $path")
-   } catch (e2: Exception) {
-    Log.e(TAG, "Failed to write '$value' to $path", e2)
-   }
+   Log.w(TAG, "suExec failed: ${e.message}")
+   null
+  }
+ }
+
+ /**
+  * Execute a shell command (non-root).
+  */
+ private fun shellExec(cmd: Array<String>): String? {
+  return try {
+   val process = Runtime.getRuntime().exec(cmd)
+   val output = process.inputStream.bufferedReader().readText().trim()
+   val exitCode = process.waitFor()
+   if (exitCode == 0 && output.isNotEmpty()) output else null
+  } catch (e: Exception) {
+   null
   }
  }
 
@@ -419,25 +528,6 @@ object HdrController {
    val result = reader.readLine()
    process.waitFor()
    result
-  } catch (e: Exception) { null }
- }
-
- private fun execCommand(command: String): String? {
-  // Try direct shell first, then su
-  return try {
-   val process = Runtime.getRuntime().exec(arrayOf("sh", "-c", command))
-   val reader = BufferedReader(InputStreamReader(process.inputStream))
-   val result = reader.readText()
-   process.waitFor()
-   if (process.exitValue() == 0 && result.isNotEmpty()) result
-   else {
-    // Try with su
-    val suProcess = Runtime.getRuntime().exec(arrayOf("su", "-c", command))
-    val suReader = BufferedReader(InputStreamReader(suProcess.inputStream))
-    val suResult = suReader.readText()
-    suProcess.waitFor()
-    if (suProcess.exitValue() == 0) suResult else null
-   }
   } catch (e: Exception) { null }
  }
 }
