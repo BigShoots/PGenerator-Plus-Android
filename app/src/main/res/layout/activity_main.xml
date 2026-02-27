@@ -126,15 +126,21 @@
       android:textColor="#8b949e"
       android:textSize="10sp" />
 
-     <Spinner
+     <TextView
       android:id="@+id/spinnerEotf"
       android:layout_width="0dp"
       android:layout_height="match_parent"
       android:layout_weight="0.65"
       android:background="@drawable/input_background"
-      android:spinnerMode="dialog"
-      android:prompt="@string/prompt_eotf"
-      android:focusable="true" />
+      android:focusable="true"
+      android:clickable="true"
+      android:gravity="center_vertical"
+      android:paddingStart="8dp"
+      android:paddingEnd="24dp"
+      android:textColor="#e6edf3"
+      android:textSize="11sp"
+      android:text="SDR (BT.1886)"
+      android:drawableEnd="@android:drawable/arrow_down_float" />
     </LinearLayout>
 
     <!-- Bit Depth -->
@@ -153,15 +159,21 @@
       android:textColor="#8b949e"
       android:textSize="10sp" />
 
-     <Spinner
+     <TextView
       android:id="@+id/spinnerBitDepth"
       android:layout_width="0dp"
       android:layout_height="match_parent"
       android:layout_weight="0.65"
       android:background="@drawable/input_background"
-      android:spinnerMode="dialog"
-      android:prompt="@string/prompt_bit_depth"
-      android:focusable="true" />
+      android:focusable="true"
+      android:clickable="true"
+      android:gravity="center_vertical"
+      android:paddingStart="8dp"
+      android:paddingEnd="24dp"
+      android:textColor="#e6edf3"
+      android:textSize="11sp"
+      android:text="8-bit"
+      android:drawableEnd="@android:drawable/arrow_down_float" />
     </LinearLayout>
 
     <!-- Color Format -->
@@ -180,15 +192,21 @@
       android:textColor="#8b949e"
       android:textSize="10sp" />
 
-     <Spinner
+     <TextView
       android:id="@+id/spinnerColorFormat"
       android:layout_width="0dp"
       android:layout_height="match_parent"
       android:layout_weight="0.65"
       android:background="@drawable/input_background"
-      android:spinnerMode="dialog"
-      android:prompt="@string/prompt_color_format"
-      android:focusable="true" />
+      android:focusable="true"
+      android:clickable="true"
+      android:gravity="center_vertical"
+      android:paddingStart="8dp"
+      android:paddingEnd="24dp"
+      android:textColor="#e6edf3"
+      android:textSize="11sp"
+      android:text="RGB"
+      android:drawableEnd="@android:drawable/arrow_down_float" />
     </LinearLayout>
 
     <!-- Colorimetry -->
@@ -207,15 +225,21 @@
       android:textColor="#8b949e"
       android:textSize="10sp" />
 
-     <Spinner
+     <TextView
       android:id="@+id/spinnerColorimetry"
       android:layout_width="0dp"
       android:layout_height="match_parent"
       android:layout_weight="0.65"
       android:background="@drawable/input_background"
-      android:spinnerMode="dialog"
-      android:prompt="@string/prompt_colorimetry"
-      android:focusable="true" />
+      android:focusable="true"
+      android:clickable="true"
+      android:gravity="center_vertical"
+      android:paddingStart="8dp"
+      android:paddingEnd="24dp"
+      android:textColor="#e6edf3"
+      android:textSize="11sp"
+      android:text="BT.709"
+      android:drawableEnd="@android:drawable/arrow_down_float" />
     </LinearLayout>
 
     <!-- Quantization Range -->
@@ -233,15 +257,21 @@
       android:textColor="#8b949e"
       android:textSize="10sp" />
 
-     <Spinner
+     <TextView
       android:id="@+id/spinnerQuantRange"
       android:layout_width="0dp"
       android:layout_height="match_parent"
       android:layout_weight="0.65"
       android:background="@drawable/input_background"
-      android:spinnerMode="dialog"
-      android:prompt="@string/prompt_quant_range"
-      android:focusable="true" />
+      android:focusable="true"
+      android:clickable="true"
+      android:gravity="center_vertical"
+      android:paddingStart="8dp"
+      android:paddingEnd="24dp"
+      android:textColor="#e6edf3"
+      android:textSize="11sp"
+      android:text="Auto"
+      android:drawableEnd="@android:drawable/arrow_down_float" />
     </LinearLayout>
    </LinearLayout>
 

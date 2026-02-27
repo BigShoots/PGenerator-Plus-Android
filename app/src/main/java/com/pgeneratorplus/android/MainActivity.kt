@@ -4,6 +4,7 @@ import android.content.Intent
 import android.os.Bundle
 import android.util.Log
 import android.widget.*
+import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import com.pgeneratorplus.android.hdr.HdrController
 import com.pgeneratorplus.android.model.AppState
@@ -16,7 +17,7 @@ import java.net.NetworkInterface
  *
  * Displays device info, network configuration, and signal settings.
  * Starts WebUI server and discovery service immediately on launch.
- * Launches PatternActivity to begin pattern generation with all servers active.
+ * Uses AlertDialog selectors instead of Spinners for Android TV D-pad support.
  */
 class MainActivity : AppCompatActivity() {
 
@@ -24,7 +25,19 @@ class MainActivity : AppCompatActivity() {
   private const val TAG = "MainActivity"
  }
 
- private var suppressSpinnerEvents = false
+ // Current selection indices for each setting
+ private var eotfIndex = 0
+ private var bitDepthIndex = 0
+ private var colorFormatIndex = 0
+ private var colorimetryIndex = 0
+ private var quantRangeIndex = 0
+
+ // Options arrays
+ private val eotfOptions = arrayOf("SDR (BT.1886)", "PQ (HDR10)", "HLG")
+ private val bitDepthOptions = arrayOf("8-bit", "10-bit")
+ private val colorFormatOptions = arrayOf("RGB", "YCbCr 4:4:4", "YCbCr 4:2:2")
+ private val colorimetryOptions = arrayOf("BT.709", "BT.2020")
+ private val quantRangeOptions = arrayOf("Auto", "Limited (16-235)", "Full (0-255)")
 
  override fun onCreate(savedInstanceState: Bundle?) {
   super.onCreate(savedInstanceState)
@@ -52,6 +65,23 @@ class MainActivity : AppCompatActivity() {
   }
  }
 
+ /**
+  * Show a single-choice AlertDialog that works with D-pad navigation.
+  * On selection, calls the callback and updates the button text.
+  */
+ private fun showSelector(title: String, options: Array<String>, currentIndex: Int,
+  button: TextView, onSelected: (Int) -> Unit) {
+  AlertDialog.Builder(this, R.style.SelectorDialog)
+   .setTitle(title)
+   .setSingleChoiceItems(options, currentIndex) { dialog, which ->
+    button.text = options[which]
+    onSelected(which)
+    dialog.dismiss()
+   }
+   .setNegativeButton("Cancel", null)
+   .show()
+ }
+
  private fun setupUI() {
   // Device info
   val tvDeviceInfo = findViewById<TextView>(R.id.tvDeviceInfo)
@@ -73,20 +103,18 @@ class MainActivity : AppCompatActivity() {
   val tvWebUI = findViewById<TextView>(R.id.tvWebUI)
   tvWebUI.text = "Web UI: http://$ip:8080"
 
-  // --- Signal Settings Spinners ---
-  suppressSpinnerEvents = true
+  // --- Signal Settings (AlertDialog selectors for D-pad) ---
+  val btnEotf = findViewById<TextView>(R.id.spinnerEotf)
+  val btnBitDepth = findViewById<TextView>(R.id.spinnerBitDepth)
+  val btnColorFormat = findViewById<TextView>(R.id.spinnerColorFormat)
+  val btnColorimetry = findViewById<TextView>(R.id.spinnerColorimetry)
+  val btnQuantRange = findViewById<TextView>(R.id.spinnerQuantRange)
 
-  // EOTF
-  val spinnerEotf = findViewById<Spinner>(R.id.spinnerEotf)
-  val eotfOptions = arrayOf("SDR (BT.1886)", "PQ (HDR10)", "HLG")
-  spinnerEotf.adapter = ArrayAdapter(this, R.layout.spinner_item, eotfOptions).also {
-   it.setDropDownViewResource(R.layout.spinner_dropdown_item)
-  }
-  spinnerEotf.setSelection(0)
-  spinnerEotf.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
-   override fun onItemSelected(parent: AdapterView<*>?, view: android.view.View?, position: Int, id: Long) {
-    if (suppressSpinnerEvents) return
-    when (position) {
+  // EOTF selector
+  btnEotf.setOnClickListener {
+   showSelector("Select EOTF", eotfOptions, eotfIndex, btnEotf) { pos ->
+    eotfIndex = pos
+    when (pos) {
      0 -> { // SDR
       AppState.eotf = 0
       AppState.hdr = false
@@ -96,103 +124,71 @@ class MainActivity : AppCompatActivity() {
       AppState.hdr = true
       // Auto-switch to BT.2020 + 10-bit for HDR
       AppState.colorimetry = 1
-      val spinnerColorimetry = findViewById<Spinner>(R.id.spinnerColorimetry)
-      spinnerColorimetry.setSelection(1)
+      colorimetryIndex = 1
+      btnColorimetry.text = colorimetryOptions[1]
       if (AppState.bitDepth < 10) {
        AppState.bitDepth = 10
-       val spinnerBitDepth = findViewById<Spinner>(R.id.spinnerBitDepth)
-       spinnerBitDepth.setSelection(1)
+       bitDepthIndex = 1
+       btnBitDepth.text = bitDepthOptions[1]
       }
      }
      2 -> { // HLG
       AppState.eotf = 3
       AppState.hdr = true
       AppState.colorimetry = 1
-      val spinnerColorimetry = findViewById<Spinner>(R.id.spinnerColorimetry)
-      spinnerColorimetry.setSelection(1)
+      colorimetryIndex = 1
+      btnColorimetry.text = colorimetryOptions[1]
       if (AppState.bitDepth < 10) {
        AppState.bitDepth = 10
-       val spinnerBitDepth = findViewById<Spinner>(R.id.spinnerBitDepth)
-       spinnerBitDepth.setSelection(1)
+       bitDepthIndex = 1
+       btnBitDepth.text = bitDepthOptions[1]
       }
      }
     }
     AppState.modeChanged = true
-    Log.i(TAG, "EOTF changed: ${eotfOptions[position]} (hdr=${AppState.hdr})")
+    Log.i(TAG, "EOTF changed: ${eotfOptions[pos]} (hdr=${AppState.hdr})")
    }
-   override fun onNothingSelected(parent: AdapterView<*>?) {}
   }
 
-  // Bit Depth
-  val spinnerBitDepth = findViewById<Spinner>(R.id.spinnerBitDepth)
-  val bitDepthOptions = arrayOf("8-bit", "10-bit")
-  spinnerBitDepth.adapter = ArrayAdapter(this, R.layout.spinner_item, bitDepthOptions).also {
-   it.setDropDownViewResource(R.layout.spinner_dropdown_item)
-  }
-  spinnerBitDepth.setSelection(0)
-  spinnerBitDepth.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
-   override fun onItemSelected(parent: AdapterView<*>?, view: android.view.View?, position: Int, id: Long) {
-    if (suppressSpinnerEvents) return
-    AppState.bitDepth = if (position == 0) 8 else 10
+  // Bit Depth selector
+  btnBitDepth.setOnClickListener {
+   showSelector("Select Bit Depth", bitDepthOptions, bitDepthIndex, btnBitDepth) { pos ->
+    bitDepthIndex = pos
+    AppState.bitDepth = if (pos == 0) 8 else 10
     AppState.modeChanged = true
     Log.i(TAG, "Bit depth changed: ${AppState.bitDepth}")
    }
-   override fun onNothingSelected(parent: AdapterView<*>?) {}
   }
 
-  // Color Format
-  val spinnerColorFormat = findViewById<Spinner>(R.id.spinnerColorFormat)
-  val colorFormatOptions = arrayOf("RGB", "YCbCr 4:4:4", "YCbCr 4:2:2")
-  spinnerColorFormat.adapter = ArrayAdapter(this, R.layout.spinner_item, colorFormatOptions).also {
-   it.setDropDownViewResource(R.layout.spinner_dropdown_item)
-  }
-  spinnerColorFormat.setSelection(0)
-  spinnerColorFormat.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
-   override fun onItemSelected(parent: AdapterView<*>?, view: android.view.View?, position: Int, id: Long) {
-    if (suppressSpinnerEvents) return
-    AppState.colorFormat = position
+  // Color Format selector
+  btnColorFormat.setOnClickListener {
+   showSelector("Select Color Format", colorFormatOptions, colorFormatIndex, btnColorFormat) { pos ->
+    colorFormatIndex = pos
+    AppState.colorFormat = pos
     AppState.modeChanged = true
-    Log.i(TAG, "Color format changed: ${colorFormatOptions[position]}")
+    Log.i(TAG, "Color format changed: ${colorFormatOptions[pos]}")
    }
-   override fun onNothingSelected(parent: AdapterView<*>?) {}
   }
 
-  // Colorimetry
-  val spinnerColorimetry = findViewById<Spinner>(R.id.spinnerColorimetry)
-  val colorimetryOptions = arrayOf("BT.709", "BT.2020")
-  spinnerColorimetry.adapter = ArrayAdapter(this, R.layout.spinner_item, colorimetryOptions).also {
-   it.setDropDownViewResource(R.layout.spinner_dropdown_item)
-  }
-  spinnerColorimetry.setSelection(0)
-  spinnerColorimetry.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
-   override fun onItemSelected(parent: AdapterView<*>?, view: android.view.View?, position: Int, id: Long) {
-    if (suppressSpinnerEvents) return
-    AppState.colorimetry = position
+  // Colorimetry selector
+  btnColorimetry.setOnClickListener {
+   showSelector("Select Colorimetry", colorimetryOptions, colorimetryIndex, btnColorimetry) { pos ->
+    colorimetryIndex = pos
+    AppState.colorimetry = pos
     AppState.modeChanged = true
-    Log.i(TAG, "Colorimetry changed: ${colorimetryOptions[position]}")
+    Log.i(TAG, "Colorimetry changed: ${colorimetryOptions[pos]}")
    }
-   override fun onNothingSelected(parent: AdapterView<*>?) {}
   }
 
-  // Quantization Range
-  val spinnerQuantRange = findViewById<Spinner>(R.id.spinnerQuantRange)
-  val quantRangeOptions = arrayOf("Auto", "Limited (16-235)", "Full (0-255)")
-  spinnerQuantRange.adapter = ArrayAdapter(this, R.layout.spinner_item, quantRangeOptions).also {
-   it.setDropDownViewResource(R.layout.spinner_dropdown_item)
-  }
-  spinnerQuantRange.setSelection(0)
-  spinnerQuantRange.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
-   override fun onItemSelected(parent: AdapterView<*>?, view: android.view.View?, position: Int, id: Long) {
-    if (suppressSpinnerEvents) return
-    AppState.quantRange = position
+  // Quantization Range selector
+  btnQuantRange.setOnClickListener {
+   showSelector("Select Quantization Range", quantRangeOptions, quantRangeIndex, btnQuantRange) { pos ->
+    quantRangeIndex = pos
+    AppState.quantRange = pos
     AppState.modeChanged = true
-    Log.i(TAG, "Quant range changed: ${quantRangeOptions[position]}")
+    Log.i(TAG, "Quant range changed: ${quantRangeOptions[pos]}")
    }
-   override fun onNothingSelected(parent: AdapterView<*>?) {}
   }
-
-  // Allow spinner events after initial setup
-  spinnerEotf.post { suppressSpinnerEvents = false }
 
   // Start button — launches pattern activity with all servers
   val btnStartPGen = findViewById<Button>(R.id.btnStartPGen)
