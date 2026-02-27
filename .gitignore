@@ -1,0 +1,17 @@
+# Gradle
+.gradle/
+build/
+local.properties
+
+# IDE
+.idea/
+*.iml
+.DS_Store
+
+# APK files
+*.apk
+*.aab
+
+# Generated
+app/release/
+app/debug/

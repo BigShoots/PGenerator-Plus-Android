@@ -1,0 +1,294 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+ android:layout_width="match_parent"
+ android:layout_height="match_parent"
+ android:background="#0d1117"
+ android:padding="24dp">
+
+ <LinearLayout
+  android:layout_width="match_parent"
+  android:layout_height="wrap_content"
+  android:orientation="vertical">
+
+  <!-- Header -->
+  <LinearLayout
+   android:layout_width="match_parent"
+   android:layout_height="wrap_content"
+   android:orientation="horizontal"
+   android:gravity="center_vertical"
+   android:layout_marginBottom="24dp">
+
+   <TextView
+    android:layout_width="0dp"
+    android:layout_height="wrap_content"
+    android:layout_weight="1"
+    android:text="PGenerator+"
+    android:textColor="#e6edf3"
+    android:textSize="28sp"
+    android:textStyle="bold" />
+
+   <TextView
+    android:layout_width="wrap_content"
+    android:layout_height="wrap_content"
+    android:text="Android"
+    android:textColor="#58a6ff"
+    android:textSize="16sp"
+    android:textStyle="italic" />
+  </LinearLayout>
+
+  <!-- Device Info Card -->
+  <LinearLayout
+   android:layout_width="match_parent"
+   android:layout_height="wrap_content"
+   android:orientation="vertical"
+   android:background="@drawable/card_background"
+   android:padding="16dp"
+   android:layout_marginBottom="16dp">
+
+   <TextView
+    android:layout_width="wrap_content"
+    android:layout_height="wrap_content"
+    android:text="DEVICE INFORMATION"
+    android:textColor="#8b949e"
+    android:textSize="12sp"
+    android:textStyle="bold"
+    android:letterSpacing="0.1"
+    android:layout_marginBottom="8dp" />
+
+   <TextView
+    android:id="@+id/tvDeviceInfo"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:textColor="#e6edf3"
+    android:textSize="14sp"
+    android:lineSpacingMultiplier="1.4"
+    android:fontFamily="monospace" />
+  </LinearLayout>
+
+  <!-- Web UI -->
+  <LinearLayout
+   android:layout_width="match_parent"
+   android:layout_height="wrap_content"
+   android:orientation="vertical"
+   android:background="@drawable/card_background"
+   android:padding="16dp"
+   android:layout_marginBottom="16dp">
+
+   <TextView
+    android:layout_width="wrap_content"
+    android:layout_height="wrap_content"
+    android:text="WEB UI"
+    android:textColor="#8b949e"
+    android:textSize="12sp"
+    android:textStyle="bold"
+    android:letterSpacing="0.1"
+    android:layout_marginBottom="8dp" />
+
+   <TextView
+    android:id="@+id/tvWebUI"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:textColor="#58a6ff"
+    android:textSize="16sp" />
+  </LinearLayout>
+
+  <!-- Signal Mode -->
+  <LinearLayout
+   android:layout_width="match_parent"
+   android:layout_height="wrap_content"
+   android:orientation="vertical"
+   android:background="@drawable/card_background"
+   android:padding="16dp"
+   android:layout_marginBottom="16dp">
+
+   <TextView
+    android:layout_width="wrap_content"
+    android:layout_height="wrap_content"
+    android:text="SIGNAL MODE"
+    android:textColor="#8b949e"
+    android:textSize="12sp"
+    android:textStyle="bold"
+    android:letterSpacing="0.1"
+    android:layout_marginBottom="8dp" />
+
+   <Spinner
+    android:id="@+id/spinnerMode"
+    android:layout_width="match_parent"
+    android:layout_height="48dp"
+    android:background="@drawable/input_background"
+    android:padding="8dp" />
+  </LinearLayout>
+
+  <!-- PGen / CalMAN Server -->
+  <LinearLayout
+   android:layout_width="match_parent"
+   android:layout_height="wrap_content"
+   android:orientation="vertical"
+   android:background="@drawable/card_background"
+   android:padding="16dp"
+   android:layout_marginBottom="16dp">
+
+   <TextView
+    android:layout_width="wrap_content"
+    android:layout_height="wrap_content"
+    android:text="PATTERN GENERATOR SERVER"
+    android:textColor="#8b949e"
+    android:textSize="12sp"
+    android:textStyle="bold"
+    android:letterSpacing="0.1"
+    android:layout_marginBottom="12dp" />
+
+   <TextView
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:text="Starts PGen (port 85), CalMAN UPGCI (port 2100),\nUDP discovery (port 1977), and Web UI (port 8080)"
+    android:textColor="#8b949e"
+    android:textSize="12sp"
+    android:layout_marginBottom="12dp" />
+
+   <Button
+    android:id="@+id/btnStartPGen"
+    android:layout_width="match_parent"
+    android:layout_height="48dp"
+    android:text="Start Pattern Generator"
+    android:textColor="#ffffff"
+    android:background="@drawable/btn_action" />
+  </LinearLayout>
+
+  <!-- Resolve Client -->
+  <LinearLayout
+   android:layout_width="match_parent"
+   android:layout_height="wrap_content"
+   android:orientation="vertical"
+   android:background="@drawable/card_background"
+   android:padding="16dp"
+   android:layout_marginBottom="16dp">
+
+   <TextView
+    android:layout_width="wrap_content"
+    android:layout_height="wrap_content"
+    android:text="RESOLVE / DISPLAYCAL CLIENT"
+    android:textColor="#8b949e"
+    android:textSize="12sp"
+    android:textStyle="bold"
+    android:letterSpacing="0.1"
+    android:layout_marginBottom="12dp" />
+
+   <LinearLayout
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="horizontal"
+    android:layout_marginBottom="8dp">
+
+    <EditText
+     android:id="@+id/etResolveIp"
+     android:layout_width="0dp"
+     android:layout_height="44dp"
+     android:layout_weight="2"
+     android:hint="Server IP"
+     android:textColor="#e6edf3"
+     android:textColorHint="#8b949e"
+     android:background="@drawable/input_background"
+     android:padding="10dp"
+     android:textSize="14sp"
+     android:inputType="text"
+     android:layout_marginEnd="8dp" />
+
+    <EditText
+     android:id="@+id/etResolvePort"
+     android:layout_width="0dp"
+     android:layout_height="44dp"
+     android:layout_weight="1"
+     android:hint="20002"
+     android:textColor="#e6edf3"
+     android:textColorHint="#8b949e"
+     android:background="@drawable/input_background"
+     android:padding="10dp"
+     android:textSize="14sp"
+     android:inputType="number" />
+   </LinearLayout>
+
+   <Button
+    android:id="@+id/btnStartResolve"
+    android:layout_width="match_parent"
+    android:layout_height="48dp"
+    android:text="Connect to Resolve"
+    android:textColor="#ffffff"
+    android:background="@drawable/btn_action" />
+  </LinearLayout>
+
+  <!-- Built-in Patterns -->
+  <LinearLayout
+   android:layout_width="match_parent"
+   android:layout_height="wrap_content"
+   android:orientation="vertical"
+   android:background="@drawable/card_background"
+   android:padding="16dp"
+   android:layout_marginBottom="16dp">
+
+   <TextView
+    android:layout_width="wrap_content"
+    android:layout_height="wrap_content"
+    android:text="BUILT-IN PATTERNS"
+    android:textColor="#8b949e"
+    android:textSize="12sp"
+    android:textStyle="bold"
+    android:letterSpacing="0.1"
+    android:layout_marginBottom="12dp" />
+
+   <LinearLayout
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="horizontal"
+    android:layout_marginBottom="8dp">
+
+    <Button
+     android:id="@+id/btnPluge"
+     android:layout_width="0dp"
+     android:layout_height="44dp"
+     android:layout_weight="1"
+     android:text="PLUGE"
+     android:textColor="#e6edf3"
+     android:background="@drawable/btn_pattern"
+     android:layout_marginEnd="4dp" />
+
+    <Button
+     android:id="@+id/btnBars"
+     android:layout_width="0dp"
+     android:layout_height="44dp"
+     android:layout_weight="1"
+     android:text="Bars"
+     android:textColor="#e6edf3"
+     android:background="@drawable/btn_pattern"
+     android:layout_marginStart="4dp" />
+   </LinearLayout>
+
+   <LinearLayout
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="horizontal">
+
+    <Button
+     android:id="@+id/btnWindow"
+     android:layout_width="0dp"
+     android:layout_height="44dp"
+     android:layout_weight="1"
+     android:text="Window"
+     android:textColor="#e6edf3"
+     android:background="@drawable/btn_pattern"
+     android:layout_marginEnd="4dp" />
+
+    <Button
+     android:id="@+id/btnRamp"
+     android:layout_width="0dp"
+     android:layout_height="44dp"
+     android:layout_weight="1"
+     android:text="Ramp"
+     android:textColor="#e6edf3"
+     android:background="@drawable/btn_pattern"
+     android:layout_marginStart="4dp" />
+   </LinearLayout>
+  </LinearLayout>
+
+ </LinearLayout>
+</ScrollView>

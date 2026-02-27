@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+ <string name="app_name">PGenerator+</string>
+ <string name="start_pgen">Start Pattern Generator</string>
+ <string name="connect_resolve">Connect to Resolve</string>
+ <string name="device_info">Device Information</string>
+ <string name="signal_mode">Signal Mode</string>
+ <string name="web_ui">Web UI</string>
+ <string name="pattern_generator_server">Pattern Generator Server</string>
+ <string name="resolve_client">Resolve / DisplayCAL Client</string>
+ <string name="built_in_patterns">Built-in Patterns</string>
+ <string name="pluge">PLUGE</string>
+ <string name="bars">Color Bars</string>
+ <string name="window">Window</string>
+ <string name="ramp">Grayscale Ramp</string>
+ <string name="mode_8bit_sdr">8-bit SDR</string>
+ <string name="mode_8bit_hdr">8-bit HDR</string>
+ <string name="mode_10bit_sdr">10-bit SDR</string>
+ <string name="mode_10bit_hdr">10-bit HDR</string>
+</resources>
