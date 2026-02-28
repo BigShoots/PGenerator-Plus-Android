@@ -287,80 +287,24 @@
     android:focusable="true" />
   </LinearLayout>
 
-  <!-- RIGHT COLUMN: Resolve + Patterns -->
+  <!-- RIGHT COLUMN: Patterns -->
   <LinearLayout
    android:layout_width="0dp"
    android:layout_height="match_parent"
    android:layout_weight="1"
    android:orientation="vertical">
 
-   <!-- Resolve Client -->
-   <LinearLayout
+   <!-- HDR / DV Probe -->
+   <Button
+    android:id="@+id/btnHdrProbe"
     android:layout_width="match_parent"
-    android:layout_height="wrap_content"
-    android:orientation="vertical"
-    android:background="@drawable/card_background"
-    android:padding="10dp"
-    android:layout_marginBottom="6dp">
-
-    <TextView
-     android:layout_width="wrap_content"
-     android:layout_height="wrap_content"
-     android:text="RESOLVE / DISPLAYCAL"
-     android:textColor="#8b949e"
-     android:textSize="10sp"
-     android:textStyle="bold"
-     android:letterSpacing="0.1"
-     android:layout_marginBottom="4dp" />
-
-    <LinearLayout
-     android:layout_width="match_parent"
-     android:layout_height="wrap_content"
-     android:orientation="horizontal"
-     android:layout_marginBottom="4dp">
-
-     <EditText
-      android:id="@+id/etResolveIp"
-      android:layout_width="0dp"
-      android:layout_height="30dp"
-      android:layout_weight="2"
-      android:hint="Server IP"
-      android:textColor="#e6edf3"
-      android:textColorHint="#8b949e"
-      android:background="@drawable/input_background"
-      android:padding="6dp"
-      android:textSize="11sp"
-      android:inputType="text"
-      android:focusable="true"
-      android:focusableInTouchMode="true"
-      android:layout_marginEnd="4dp" />
-
-     <EditText
-      android:id="@+id/etResolvePort"
-      android:layout_width="0dp"
-      android:layout_height="30dp"
-      android:layout_weight="1"
-      android:hint="20002"
-      android:textColor="#e6edf3"
-      android:textColorHint="#8b949e"
-      android:background="@drawable/input_background"
-      android:padding="6dp"
-      android:textSize="11sp"
-      android:inputType="number"
-      android:focusable="true"
-      android:focusableInTouchMode="true" />
-    </LinearLayout>
-
-    <Button
-     android:id="@+id/btnStartResolve"
-     android:layout_width="match_parent"
-     android:layout_height="32dp"
-     android:text="Connect"
-     android:textColor="#ffffff"
-     android:textSize="11sp"
-     android:background="@drawable/btn_action"
-     android:focusable="true" />
-   </LinearLayout>
+    android:layout_height="32dp"
+    android:text="HDR / DV Probe"
+    android:textColor="#ffffff"
+    android:textSize="11sp"
+    android:background="@drawable/btn_action"
+    android:focusable="true"
+    android:layout_marginBottom="6dp" />
 
    <!-- Built-in Patterns -->
    <LinearLayout

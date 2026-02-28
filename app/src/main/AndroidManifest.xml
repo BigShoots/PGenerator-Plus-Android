@@ -53,5 +53,18 @@
    android:configChanges="orientation|screenSize|keyboardHidden"
    android:theme="@style/Theme.PGeneratorPlus.Fullscreen" />
 
+  <!-- HDR / DV diagnostic probe activity -->
+  <activity
+   android:name=".HdrProbeActivity"
+    android:exported="true"
+   android:screenOrientation="landscape"
+   android:configChanges="orientation|screenSize|keyboardHidden" />
+
+  <activity
+   android:name=".VideoProbeActivity"
+    android:exported="true"
+   android:screenOrientation="landscape"
+   android:configChanges="orientation|screenSize|keyboardHidden" />
+
  </application>
 </manifest>

@@ -78,7 +78,24 @@ class WebUIServer(
   */
  private fun launchPatternActivity() {
   if (AppState.patternActivityActive) return
+  startPatternActivity()
+ }
+
+ /**
+  * Force-(re)launch PatternActivity. Used when HDR mode changes
+  * require an EGL surface recreation (new RGBA16F + BT2020 dataspace).
+  * FLAG_ACTIVITY_CLEAR_TOP finishes any existing PatternActivity first.
+  */
+ private fun restartPatternActivity() {
+  startPatternActivity(forceRestart = true)
+ }
+
+ private fun startPatternActivity(forceRestart: Boolean = false) {
   try {
+   if (AppState.hdr && AppState.eotf == 0) {
+    AppState.applyEotfMode(2)
+   }
+
    val intent = Intent(context, com.pgeneratorplus.android.PatternActivity::class.java).apply {
     putExtra("mode", "pgen")
     putExtra("hdr", AppState.hdr)
@@ -88,9 +105,11 @@ class WebUIServer(
     putExtra("colorimetry", AppState.colorimetry)
     putExtra("quantRange", AppState.quantRange)
     addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+    if (forceRestart) addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP)
    }
    context.startActivity(intent)
-   Log.i(TAG, "Launched PatternActivity from WebUI")
+   Log.i(TAG, "${if (forceRestart) "Restarted" else "Launched"} PatternActivity from WebUI" +
+    " (hdr=${AppState.hdr} eotf=${AppState.eotf} bits=${AppState.bitDepth})")
   } catch (e: Exception) {
    Log.e(TAG, "Failed to launch PatternActivity", e)
   }
@@ -154,7 +173,8 @@ class WebUIServer(
   val config = JsonObject().apply {
    // Signal mode flags (Pi format)
    addProperty("is_sdr", if (!AppState.hdr) "1" else "0")
-   addProperty("is_hdr", if (AppState.hdr && AppState.eotf != 3) "1" else "0")
+   addProperty("is_hdr", if (AppState.hdr) "1" else "0")
+   addProperty("is_hlg", if (AppState.hdr && AppState.eotf == 3) "1" else "0")
    addProperty("eotf", AppState.eotf.toString())
    addProperty("max_bpc", AppState.bitDepth.toString())
    addProperty("color_format", AppState.colorFormat.toString())
@@ -169,9 +189,9 @@ class WebUIServer(
    addProperty("max_fall", if (AppState.maxFALL > 0) AppState.maxFALL.toString() else "400")
 
    // DV (not available on Android)
-   addProperty("dv_status", "0")
-   addProperty("is_ll_dovi", "0")
-   addProperty("is_std_dovi", "0")
+    addProperty("dv_status", if (AppState.dvMode) "1" else "0")
+    addProperty("is_ll_dovi", if (AppState.dvMode) "1" else "0")
+    addProperty("is_std_dovi", if (AppState.dvMode) "1" else "0")
    addProperty("dv_metadata", "0")
    addProperty("dv_interface", "0")
    addProperty("dv_color_space", "0")
@@ -189,19 +209,23 @@ class WebUIServer(
   val body = readBody(session)
   val json = gson.fromJson(body, JsonObject::class.java)
 
+  // Track state before changes to detect HDR mode transitions
+  val wasHdr = AppState.hdr
+  val wasEotf = AppState.eotf
+
   // Handle Pi-format config keys
   json.get("max_bpc")?.asString?.toIntOrNull()?.let { AppState.bitDepth = it }
   json.get("eotf")?.asString?.toIntOrNull()?.let { eotf ->
-   AppState.eotf = eotf
-   AppState.hdr = eotf > 0
+    AppState.applyEotfMode(eotf)
   }
   json.get("color_format")?.asString?.toIntOrNull()?.let { AppState.colorFormat = it }
   json.get("rgb_quant_range")?.asString?.toIntOrNull()?.let { AppState.quantRange = it }
   json.get("colorimetry")?.asString?.toIntOrNull()?.let { AppState.colorimetry = it }
 
   // Handle is_sdr/is_hdr flags
-  json.get("is_sdr")?.asString?.let { if (it == "1") { AppState.hdr = false; AppState.eotf = 0 } }
-  json.get("is_hdr")?.asString?.let { if (it == "1") AppState.hdr = true }
+    json.get("is_sdr")?.asString?.let { if (it == "1") AppState.applyEotfMode(0) }
+    json.get("is_hdr")?.asString?.let { if (it == "1" && AppState.eotf == 0) AppState.applyEotfMode(2) }
+    json.get("dv_status")?.asString?.let { if (it == "1") AppState.applyEotfMode(4) }
 
   // HDR metadata
   json.get("max_luma")?.asString?.toIntOrNull()?.let { AppState.maxDML = it }
@@ -223,12 +247,17 @@ class WebUIServer(
    HdrController.setHdrMetadata(AppState.maxCLL, AppState.maxFALL, AppState.maxDML)
   }
 
-  // Auto-launch pattern generator
-  launchPatternActivity()
+  // Launch or restart pattern generator (restart if HDR mode changed)
+  val hdrChanged = (AppState.hdr != wasHdr || (AppState.hdr && AppState.eotf != wasEotf))
+  if (hdrChanged && AppState.patternActivityActive) {
+   restartPatternActivity()
+  } else {
+   launchPatternActivity()
+  }
 
   val result = JsonObject().apply {
    addProperty("status", "ok")
-   addProperty("restart", false)
+   addProperty("restart", hdrChanged)
   }
   return jsonResponse(result)
  }
@@ -286,6 +315,7 @@ class WebUIServer(
     0 -> "SDR"
     2 -> "PQ (HDR10)"
     3 -> "HLG"
+    4 -> "Dolby Vision"
     else -> "Unknown"
    })
    addProperty("hdrStatus", HdrController.getHdrStatus())
@@ -306,47 +336,19 @@ class WebUIServer(
   when (patternName) {
    // Pi-compatible pattern names
    "white_clipping" -> {
-    // White clipping: near-white bars showing 100%, 101%, 102%, 104%
-    val commands = mutableListOf<DrawCommand>()
-    commands.add(DrawCommand.fullFieldInt(200, 200, 200, maxV))
-    val levels = intArrayOf(250, 252, 254, 255)
-    val barWidth = 0.12f
-    for (i in levels.indices) {
-     val cmd = DrawCommand()
-     cmd.setColorsFromRgb(intArrayOf(levels[i], levels[i], levels[i]), maxV)
-     cmd.x1 = -0.24f + i * barWidth; cmd.y1 = 0.4f
-     cmd.x2 = cmd.x1 + barWidth; cmd.y2 = -0.4f
-     commands.add(cmd)
-    }
-    AppState.setCommands(commands)
+    AppState.setCommands(PatternGenerator.drawWhiteClipping(AppState.quantRange != 1))
    }
    "black_clipping" -> {
-    // Black clipping / PLUGE
-    AppState.setCommands(PatternGenerator.drawPluge(AppState.hdr))
+    AppState.setCommands(PatternGenerator.drawBlackClipping(AppState.quantRange != 1, AppState.hdr))
    }
    "color_bars" -> {
-    AppState.setCommands(PatternGenerator.drawBars(AppState.quantRange != 1, AppState.hdr))
+    AppState.setCommands(PatternGenerator.drawColorBars(AppState.quantRange != 1, AppState.hdr))
    }
    "gray_ramp" -> {
     AppState.setCommands(PatternGenerator.drawGrayscaleRamp(AppState.quantRange != 1))
    }
    "overscan" -> {
-    // Overscan: white border lines on black background
-    val commands = mutableListOf<DrawCommand>()
-    commands.add(DrawCommand.fullFieldInt(0, 0, 0, maxV))
-    val t = 0.01f // border thickness
-    // Top
-    commands.add(DrawCommand.solidRect(-1f, 1f, 1f, 1f - t, 1f, 1f, 1f))
-    // Bottom
-    commands.add(DrawCommand.solidRect(-1f, -1f + t, 1f, -1f, 1f, 1f, 1f))
-    // Left
-    commands.add(DrawCommand.solidRect(-1f, 1f, -1f + t, -1f, 1f, 1f, 1f))
-    // Right
-    commands.add(DrawCommand.solidRect(1f - t, 1f, 1f, -1f, 1f, 1f, 1f))
-    // Center cross
-    commands.add(DrawCommand.solidRect(-0.005f, 0.15f, 0.005f, -0.15f, 1f, 1f, 1f))
-    commands.add(DrawCommand.solidRect(-0.15f, 0.005f, 0.15f, -0.005f, 1f, 1f, 1f))
-    AppState.setCommands(commands)
+    AppState.setCommands(PatternGenerator.drawOverscan())
    }
    "patch" -> {
     // Patch with specific R,G,B and window size
@@ -409,8 +411,8 @@ class WebUIServer(
   }
   AppState.modeChanged = true
 
-  // Auto-launch pattern generator
-  launchPatternActivity()
+  // Force restart to apply new signal settings (HDR/SDR/resolution changes)
+  restartPatternActivity()
 
   val result = JsonObject().apply {
    addProperty("status", "ok")
@@ -433,6 +435,9 @@ class WebUIServer(
    addProperty("mode", AppState.patternMode.name)
    addProperty("bitDepth", AppState.bitDepth)
    addProperty("hdr", AppState.hdr)
+   addProperty("hdrStatus", HdrController.getHdrStatus())
+   addProperty("tenBitDecode", HdrController.is10BitDecodeEnabled())
+   addProperty("amlogic", HdrController.isAmlogicDevice())
    addProperty("pgenPort", PGenServer.TCP_PORT)
    addProperty("upgciPort", UPGCIServer.TCP_PORT)
    addProperty("discoveryPort", DiscoveryService.UDP_PORT)
@@ -468,7 +473,7 @@ class WebUIServer(
   val eotf = json.get("eotf")?.asInt ?: if (hdr) 2 else 0
 
   AppState.setMode(bits, hdr)
-  AppState.eotf = eotf
+    AppState.applyEotfMode(eotf)
   AppState.modeChanged = true
 
   val maxCLL = json.get("maxCLL")?.asInt

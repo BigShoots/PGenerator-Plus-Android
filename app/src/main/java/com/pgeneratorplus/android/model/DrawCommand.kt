@@ -79,10 +79,14 @@ data class DrawCommand(
 
  fun toVertexData(): FloatArray {
   return floatArrayOf(
+   // Triangle 1: top-left, top-right, bottom-left
    x1, y1, color1[0], color1[1], color1[2], quant,
    x2, y1, color2[0], color2[1], color2[2], quant,
    x1, y2, color3[0], color3[1], color3[2], quant,
-   x2, y2, color4[0], color4[1], color4[2], quant
+   // Triangle 2: top-right, bottom-right, bottom-left
+   x2, y1, color2[0], color2[1], color2[2], quant,
+   x2, y2, color4[0], color4[1], color4[2], quant,
+   x1, y2, color3[0], color3[1], color3[2], quant
   )
  }
 

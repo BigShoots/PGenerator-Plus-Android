@@ -15,3 +15,6 @@ local.properties
 # Generated
 app/release/
 app/debug/
+
+# NDK build cache
+app/.cxx/

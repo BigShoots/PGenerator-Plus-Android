@@ -33,7 +33,7 @@ class MainActivity : AppCompatActivity() {
  private var quantRangeIndex = 0
 
  // Options arrays
- private val eotfOptions = arrayOf("SDR (BT.1886)", "PQ (HDR10)", "HLG")
+ private val eotfOptions = arrayOf("SDR (BT.1886)", "PQ (HDR10)", "HLG", "Dolby Vision")
  private val bitDepthOptions = arrayOf("8-bit", "10-bit")
  private val colorFormatOptions = arrayOf("RGB", "YCbCr 4:4:4", "YCbCr 4:2:2")
  private val colorimetryOptions = arrayOf("BT.709", "BT.2020")
@@ -67,19 +67,39 @@ class MainActivity : AppCompatActivity() {
 
  /**
   * Show a single-choice AlertDialog that works with D-pad navigation.
+  * Uses a custom layout with focus-state background so the currently
+  * highlighted item is clearly visible when navigating with D-pad.
   * On selection, calls the callback and updates the button text.
   */
  private fun showSelector(title: String, options: Array<String>, currentIndex: Int,
   button: TextView, onSelected: (Int) -> Unit) {
-  AlertDialog.Builder(this, R.style.SelectorDialog)
+  val adapter = android.widget.ArrayAdapter(this,
+   R.layout.dialog_singlechoice_item, android.R.id.text1, options)
+
+  val dlg = AlertDialog.Builder(this, R.style.SelectorDialog)
    .setTitle(title)
-   .setSingleChoiceItems(options, currentIndex) { dialog, which ->
+   .setSingleChoiceItems(adapter, currentIndex) { dialog, which ->
     button.text = options[which]
     onSelected(which)
     dialog.dismiss()
    }
    .setNegativeButton("Cancel", null)
-   .show()
+   .create()
+
+  dlg.setOnShowListener {
+   dlg.listView?.let { lv ->
+    // Ensure single-choice mode and D-pad focus handling
+    lv.choiceMode = android.widget.ListView.CHOICE_MODE_SINGLE
+    lv.setItemChecked(currentIndex, true)
+    lv.setSelection(currentIndex)
+    // Let the ListView handle focus — items must NOT be focusable
+    lv.itemsCanFocus = false
+    lv.isFocusable = true
+    lv.isFocusableInTouchMode = true
+    lv.post { lv.requestFocus() }
+   }
+  }
+  dlg.show()
  }
 
  private fun setupUI() {
@@ -116,12 +136,10 @@ class MainActivity : AppCompatActivity() {
     eotfIndex = pos
     when (pos) {
      0 -> { // SDR
-      AppState.eotf = 0
-      AppState.hdr = false
+      AppState.applyEotfMode(0)
      }
      1 -> { // PQ (HDR10)
-      AppState.eotf = 2
-      AppState.hdr = true
+      AppState.applyEotfMode(2)
       // Auto-switch to BT.2020 + 10-bit for HDR
       AppState.colorimetry = 1
       colorimetryIndex = 1
@@ -133,8 +151,18 @@ class MainActivity : AppCompatActivity() {
       }
      }
      2 -> { // HLG
-      AppState.eotf = 3
-      AppState.hdr = true
+      AppState.applyEotfMode(3)
+      AppState.colorimetry = 1
+      colorimetryIndex = 1
+      btnColorimetry.text = colorimetryOptions[1]
+      if (AppState.bitDepth < 10) {
+       AppState.bitDepth = 10
+       bitDepthIndex = 1
+       btnBitDepth.text = bitDepthOptions[1]
+      }
+         }
+         3 -> { // Dolby Vision
+      AppState.applyEotfMode(4)
       AppState.colorimetry = 1
       colorimetryIndex = 1
       btnColorimetry.text = colorimetryOptions[1]
@@ -205,27 +233,11 @@ class MainActivity : AppCompatActivity() {
    startActivity(intent)
   }
 
-  // Resolve mode
-  val btnStartResolve = findViewById<Button>(R.id.btnStartResolve)
-  val etResolveIp = findViewById<EditText>(R.id.etResolveIp)
-  val etResolvePort = findViewById<EditText>(R.id.etResolvePort)
-
-  btnStartResolve.setOnClickListener {
-   val resolveIp = etResolveIp.text.toString().ifEmpty { "192.168.1.100" }
-   val resolvePort = etResolvePort.text.toString().toIntOrNull() ?: 20002
-   val intent = Intent(this, PatternActivity::class.java).apply {
-    putExtra("mode", if (AppState.hdr) "resolve_hdr" else "resolve_sdr")
-    putExtra("resolveIp", resolveIp)
-    putExtra("resolvePort", resolvePort)
-    putExtra("hdr", AppState.hdr)
-    putExtra("bits", AppState.bitDepth)
-    putExtra("eotf", AppState.eotf)
-    putExtra("colorFormat", AppState.colorFormat)
-    putExtra("colorimetry", AppState.colorimetry)
-    putExtra("quantRange", AppState.quantRange)
-   }
-   startActivity(intent)
-  }
+    // HDR / DV probe mode (diagnostic)
+    val btnHdrProbe = findViewById<Button>(R.id.btnHdrProbe)
+    btnHdrProbe.setOnClickListener {
+     startActivity(Intent(this, HdrProbeActivity::class.java))
+    }
 
   // Built-in patterns
   val btnPluge = findViewById<Button>(R.id.btnPluge)

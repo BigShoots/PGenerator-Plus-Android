@@ -29,7 +29,10 @@ object AppState {
  var maxDML: Int = -1
 
  @Volatile
- var eotf: Int = 0 // 0=SDR, 2=PQ, 3=HLG
+ var eotf: Int = 0 // 0=SDR, 2=PQ, 3=HLG, 4=Dolby Vision
+
+ @Volatile
+ var dvMode: Boolean = false
 
  @Volatile
  var colorFormat: Int = 0 // 0=RGB, 1=YCbCr444, 2=YCbCr422
@@ -93,7 +96,23 @@ object AppState {
  fun setMode(bits: Int, isHdr: Boolean) {
   bitDepth = bits
   hdr = isHdr
+    if (!isHdr) {
+     eotf = 0
+     dvMode = false
+    } else if (eotf == 0) {
+     eotf = 2
+     dvMode = false
+    } else {
+     dvMode = (eotf == 4)
+    }
   modeChanged = true
+ }
+
+ fun applyEotfMode(targetEotf: Int) {
+    eotf = targetEotf
+    dvMode = (targetEotf == 4)
+    hdr = targetEotf > 0
+    modeChanged = true
  }
 
  fun parseModeString(mode: String): Boolean {
@@ -114,6 +133,7 @@ object AppState {
   maxFALL = -1
   maxDML = -1
   eotf = 0
+    dvMode = false
   colorFormat = 0
   colorimetry = 0
   quantRange = 0

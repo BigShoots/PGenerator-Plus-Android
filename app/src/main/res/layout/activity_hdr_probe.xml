@@ -1,0 +1,81 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+ android:layout_width="match_parent"
+ android:layout_height="match_parent"
+ android:orientation="vertical"
+ android:background="#0d1117"
+ android:padding="12dp">
+
+ <LinearLayout
+  android:layout_width="match_parent"
+  android:layout_height="wrap_content"
+  android:orientation="horizontal"
+  android:gravity="center_vertical"
+  android:layout_marginBottom="8dp">
+
+  <TextView
+   android:layout_width="0dp"
+   android:layout_height="wrap_content"
+   android:layout_weight="1"
+   android:text="HDR / DV Probe"
+   android:textColor="#e6edf3"
+   android:textSize="18sp"
+   android:textStyle="bold" />
+
+  <Button
+   android:id="@+id/btnRefreshProbe"
+   android:layout_width="wrap_content"
+   android:layout_height="32dp"
+   android:text="Refresh"
+   android:textColor="#ffffff"
+   android:textSize="11sp"
+   android:background="@drawable/btn_action"
+   android:focusable="true" />
+
+  <Button
+   android:id="@+id/btnOpenVideoProbe"
+   android:layout_width="wrap_content"
+   android:layout_height="32dp"
+   android:layout_marginStart="6dp"
+   android:text="Video Test"
+   android:textColor="#ffffff"
+   android:textSize="11sp"
+   android:background="@drawable/btn_action"
+   android:focusable="true" />
+ </LinearLayout>
+
+ <TextView
+  android:id="@+id/tvProbeSummary"
+  android:layout_width="match_parent"
+  android:layout_height="wrap_content"
+  android:layout_marginBottom="6dp"
+  android:textColor="#58a6ff"
+  android:textSize="12sp"
+  android:textStyle="bold" />
+
+ <ScrollView
+  android:layout_width="match_parent"
+  android:layout_height="0dp"
+  android:layout_weight="1"
+  android:background="@drawable/card_background"
+  android:padding="10dp">
+
+  <TextView
+   android:id="@+id/tvProbeInfo"
+   android:layout_width="match_parent"
+   android:layout_height="wrap_content"
+   android:textColor="#e6edf3"
+   android:textSize="12sp"
+   android:fontFamily="monospace"
+   android:lineSpacingMultiplier="1.25" />
+ </ScrollView>
+
+ <TextView
+  android:layout_width="match_parent"
+  android:layout_height="wrap_content"
+  android:layout_marginTop="8dp"
+  android:text="Tip: If this shows no Dolby Vision decoder/profile, true DV output is not possible from this Android build."
+  android:textColor="#8b949e"
+  android:textSize="11sp" />
+
+</LinearLayout>

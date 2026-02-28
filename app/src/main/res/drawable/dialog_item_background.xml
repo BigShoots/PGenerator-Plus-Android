@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Background states for dialog list items.
+     ListView uses: state_focused/state_selected for D-pad cursor,
+     state_activated for single-choice selection (checked item),
+     state_pressed for click confirmation. -->
+<selector xmlns:android="http://schemas.android.com/apk/res/android">
+ <!-- D-pad on the currently selected/checked item -->
+ <item android:state_focused="true" android:state_activated="true">
+  <shape android:shape="rectangle">
+   <solid android:color="#1f3a5f" />
+   <stroke android:width="2dp" android:color="#58a6ff" />
+   <corners android:radius="4dp" />
+  </shape>
+ </item>
+ <item android:state_selected="true" android:state_activated="true">
+  <shape android:shape="rectangle">
+   <solid android:color="#1f3a5f" />
+   <stroke android:width="2dp" android:color="#58a6ff" />
+   <corners android:radius="4dp" />
+  </shape>
+ </item>
+ <!-- D-pad cursor (not on checked item) -->
+ <item android:state_focused="true">
+  <shape android:shape="rectangle">
+   <solid android:color="#1c2129" />
+   <stroke android:width="2dp" android:color="#58a6ff" />
+   <corners android:radius="4dp" />
+  </shape>
+ </item>
+ <item android:state_selected="true">
+  <shape android:shape="rectangle">
+   <solid android:color="#1c2129" />
+   <stroke android:width="2dp" android:color="#58a6ff" />
+   <corners android:radius="4dp" />
+  </shape>
+ </item>
+ <!-- Pressed (confirm click) -->
+ <item android:state_pressed="true">
+  <shape android:shape="rectangle">
+   <solid android:color="#1f3a5f" />
+   <corners android:radius="4dp" />
+  </shape>
+ </item>
+ <!-- Checked/activated item (not focused) -->
+ <item android:state_activated="true">
+  <shape android:shape="rectangle">
+   <solid android:color="#161b22" />
+   <stroke android:width="1dp" android:color="#58a6ff" />
+   <corners android:radius="4dp" />
+  </shape>
+ </item>
+ <item android:state_checked="true">
+  <shape android:shape="rectangle">
+   <solid android:color="#161b22" />
+   <stroke android:width="1dp" android:color="#58a6ff" />
+   <corners android:radius="4dp" />
+  </shape>
+ </item>
+ <!-- Default -->
+ <item>
+  <shape android:shape="rectangle">
+   <solid android:color="#21262d" />
+   <corners android:radius="4dp" />
+  </shape>
+ </item>
+</selector>

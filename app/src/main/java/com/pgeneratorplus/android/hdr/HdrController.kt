@@ -7,6 +7,7 @@ import android.util.Log
 import android.view.Display
 import android.view.Window
 import android.view.WindowManager
+import com.pgeneratorplus.android.model.AppState
 import java.io.BufferedReader
 import java.io.File
 import java.io.InputStreamReader
@@ -93,6 +94,83 @@ object HdrController {
   */
  fun hasSysfsHdrControl(): Boolean {
   return isAmlogicDevice() && File(AMHDMITX_PATH).exists() && hasRootAccess()
+ }
+
+ /**
+  * Ensure the Amlogic media codec 10-bit decode support is enabled.
+  *
+  * This is critical for HDR on Chromecast with Google TV where the
+  * `debug.vendor.media.c2.vdec.support_10bit` property defaults to `false`.
+  * Without this property, the HEVC decoder only outputs 8-bit even for
+  * HDR10 content, and the HWC never triggers HDR output mode on HDMI.
+  *
+  * The property can be set by the ADB shell user but not by regular apps.
+  * This method tries multiple approaches and reports the result.
+  *
+  * @return true if the property is set to true, false if it couldn't be set
+  */
+ fun ensure10BitDecodeSupport(): Boolean {
+  if (!isAmlogicDevice()) return true // Non-Amlogic doesn't need this
+
+  // Check current value
+  val current = getSystemProperty("debug.vendor.media.c2.vdec.support_10bit")
+  if (current == "true") {
+   Log.i(TAG, "10-bit decode support already enabled")
+   return true
+  }
+
+  Log.i(TAG, "10-bit decode support is '$current', attempting to enable...")
+
+  // Try 1: Runtime.exec setprop (works if app UID can set debug.* properties)
+  try {
+   val process = Runtime.getRuntime().exec(
+    arrayOf("setprop", "debug.vendor.media.c2.vdec.support_10bit", "true")
+   )
+   process.waitFor()
+   val verify = getSystemProperty("debug.vendor.media.c2.vdec.support_10bit")
+   if (verify == "true") {
+    Log.i(TAG, "10-bit decode support enabled via setprop")
+    return true
+   }
+  } catch (e: Exception) {
+   Log.d(TAG, "setprop attempt failed: ${e.message}")
+  }
+
+  // Try 2: android.os.SystemProperties.set() via reflection
+  try {
+   val clazz = Class.forName("android.os.SystemProperties")
+   val setter = clazz.getDeclaredMethod("set", String::class.java, String::class.java)
+   setter.invoke(null, "debug.vendor.media.c2.vdec.support_10bit", "true")
+   val verify = getSystemProperty("debug.vendor.media.c2.vdec.support_10bit")
+   if (verify == "true") {
+    Log.i(TAG, "10-bit decode support enabled via SystemProperties.set()")
+    return true
+   }
+  } catch (e: Exception) {
+   Log.d(TAG, "SystemProperties.set attempt failed: ${e.message}")
+  }
+
+  // Try 3: su setprop (rooted devices)
+  if (hasRootAccess()) {
+   suExec("setprop debug.vendor.media.c2.vdec.support_10bit true")
+   val verify = getSystemProperty("debug.vendor.media.c2.vdec.support_10bit")
+   if (verify == "true") {
+    Log.i(TAG, "10-bit decode support enabled via su")
+    return true
+   }
+  }
+
+  Log.w(TAG, "Failed to enable 10-bit decode support automatically. " +
+   "Run via ADB once per boot: adb shell setprop debug.vendor.media.c2.vdec.support_10bit true")
+  return false
+ }
+
+ /**
+  * Check if 10-bit decode support is currently enabled.
+  */
+ fun is10BitDecodeEnabled(): Boolean {
+  val value = getSystemProperty("debug.vendor.media.c2.vdec.support_10bit")
+  return value == "true"
  }
 
  /**
@@ -237,7 +315,7 @@ object HdrController {
   * - HDR/SDR mode via `config` ("hdr,2" for PQ, "hlg" for HLG, "sdr" for SDR)
   *   This is what actually sets the DRM InfoFrame and triggers the TV's HDR mode.
   *
-  * @param eotf EOTF transfer function: 0=SDR, 2=PQ, 3=HLG
+ * @param eotf EOTF transfer function: 0=SDR, 2=PQ, 3=HLG, 4=Dolby Vision (PQ transport)
   * @param colorFormat Color format: 0=RGB, 1=YCbCr444, 2=YCbCr422
   * @param colorimetry Colorimetry: 0=BT.709, 1=BT.2020
   * @param bitDepth Bit depth: 8, 10, or 12
@@ -269,6 +347,10 @@ object HdrController {
      writeSysfs(CONFIG_PATH, "hdr,2")
      Log.i(TAG, "Amlogic config: HDR10 (PQ) mode")
     }
+    4 -> { // Dolby Vision request (transported as PQ on generated patterns)
+     writeSysfs(CONFIG_PATH, "hdr,2")
+     Log.i(TAG, "Amlogic config: Dolby Vision requested, using PQ transport mode")
+    }
     3 -> { // HLG
      writeSysfs(CONFIG_PATH, "hlg")
      Log.i(TAG, "Amlogic config: HLG mode")
@@ -285,8 +367,15 @@ object HdrController {
   } else {
    // Non-root path: HDR is handled via EGL surface (HdrEglHelper) +
    // window.colorMode (set in setHdrMode). Sysfs writes are not possible.
-   val hdrMethod = if (HdrEglHelper.activeHdrColorspace != 0) "EGL BT2020_PQ" else "window colorMode only"
-   Log.i(TAG, "Non-root device — HDR handled via $hdrMethod (EOTF=$eotf)")
+     val hdrMethod = when {
+        HdrEglHelper.activeHdrColorspace == 0x3540 -> "EGL BT2020_HLG"
+        HdrEglHelper.activeHdrColorspace == 0x3340 && eotf == 4 -> "EGL BT2020_PQ (Dolby Vision transport)"
+        HdrEglHelper.activeHdrColorspace == 0x3340 -> "EGL BT2020_PQ"
+        HdrEglHelper.hdrDataSpaceSet && eotf == 3 -> "Surface BT2020_HLG"
+        HdrEglHelper.hdrDataSpaceSet -> "Surface BT2020_PQ"
+        else -> "window colorMode only"
+     }
+     Log.i(TAG, "Non-root device — HDR handled via $hdrMethod (EOTF=$eotf)")
   }
  }
 
@@ -440,13 +529,29 @@ object HdrController {
   * Returns e.g. "SDR", "HDR10-GAMMA_ST2084", "HDR10-GAMMA_HLG"
   */
  fun getHdrStatus(): String {
+  // Rooted Amlogic: full sysfs access
   if (hasSysfsHdrControl()) {
    return readSysfs(HDR_STATUS_PATH).ifEmpty { "unknown" }
   }
-  // Non-root: report EGL HDR state
-  return when (HdrEglHelper.activeHdrColorspace) {
-   0x3340 -> "HDR10-EGL_BT2020_PQ"
-   0x3540 -> "HLG-EGL_BT2020_HLG"
+
+  // Non-root Amlogic: hdmi_hdr_status is often world-readable
+  // (e.g., Chromecast with Google TV). Try direct read first.
+  if (isAmlogicDevice()) {
+   val sysfsStatus = readSysfs(HDR_STATUS_PATH)
+   if (sysfsStatus.isNotEmpty()) {
+    return sysfsStatus
+   }
+  }
+
+  if (AppState.dvMode && HdrEglHelper.isHdrActive) {
+   return "DOLBY_VISION-BT2020_PQ"
+  }
+  // Non-root: report HDR state (EGL colorspace or Surface dataspace)
+  return when {
+   HdrEglHelper.activeHdrColorspace == 0x3340 -> "HDR10-EGL_BT2020_PQ"
+   HdrEglHelper.activeHdrColorspace == 0x3540 -> "HLG-EGL_BT2020_HLG"
+   HdrEglHelper.hdrDataSpaceSet && AppState.eotf == 3 -> "HLG-SURFACE_BT2020_HLG"
+   HdrEglHelper.hdrDataSpaceSet -> "HDR10-SURFACE_BT2020_PQ"
    else -> "SDR"
   }
  }

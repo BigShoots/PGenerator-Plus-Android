@@ -84,6 +84,8 @@ transition:all .2s;line-height:1.2;font-weight:500}
 .pat-btn:hover{border-color:var(--accent);background:#1a1a2e;transform:translateY(-1px)}
 .pat-btn.active{border-color:var(--accent);background:rgba(91,127,255,.15)}
 .pat-btn-sm{padding:5px 2px;font-size:.65rem}
+.pat-btn .pat-desc{display:block;font-size:.55rem;color:var(--text2);font-weight:400;margin-top:2px;line-height:1.2}
+.pat-btn:hover .pat-desc{color:var(--text)}
 .pat-section{margin-bottom:8px}
 .pat-section-title{font-size:.65rem;color:var(--text2);text-transform:uppercase;
 letter-spacing:.5px;margin-bottom:4px;padding-bottom:2px;border-bottom:1px solid var(--border);
@@ -261,40 +263,45 @@ cursor:pointer;user-select:none;display:flex;align-items:center;gap:4px}
   <h2>Test Patterns</h2>
   <div class="patch-size-bar">
    <span class="field-label">Patch Size</span>
-   <select id="patchSize" class="field-value" style="flex:0 0 auto;width:auto">
+   <select id="patchSize" class="field-value" style="flex:0 0 auto;width:auto" title="Window size for grayscale, color checker, and saturation patches. 18% is the standard measurement window. Use Full Field for visual evaluation.">
     <option value="10">10% Window</option>
     <option value="18" selected>18% Window</option>
     <option value="50">50% Window</option>
     <option value="100">Full Field</option>
    </select>
+   <span style="font-size:.6rem;color:var(--text2);margin-left:4px">Applies to grayscale, color &amp; saturation patches</span>
   </div>
   <div class="pat-section">
    <div class="pat-section-title" onclick="toggleSection(this)">Diagnostic</div>
    <div class="pat-content">
+    <div style="font-size:.65rem;color:var(--text2);margin-bottom:6px;line-height:1.4">Visual setup patterns for display calibration. Use these to verify your display&#39;s basic picture settings before running a full calibration.</div>
     <div class="pat-grid">
-     <button class="pat-btn" onclick="showPattern('white_clipping')">White Clipping</button>
-     <button class="pat-btn" onclick="showPattern('black_clipping')">Black Clipping</button>
-     <button class="pat-btn" onclick="showPattern('color_bars')">Color Bars</button>
-     <button class="pat-btn" onclick="showPattern('gray_ramp')">Gray Ramp</button>
-     <button class="pat-btn" onclick="showPattern('overscan')">Overscan</button>
+     <button class="pat-btn" onclick="showPattern('white_clipping')" title="Adjust Contrast/White Level: 9 vertical bars from 90% to 100% white on an 85% gray background. Reduce contrast until all bars are individually visible — the 100% bar should be barely brighter than 99%.">White Clipping<span class="pat-desc">Set Contrast — all 9 near-white bars visible</span></button>
+     <button class="pat-btn" onclick="showPattern('black_clipping')" title="Adjust Brightness/Black Level (PLUGE): 7 bars from below-black through +10%. Raise brightness until the leftmost (below-black) bar just disappears while the +2% bar remains barely visible.">Black Clipping<span class="pat-desc">Set Brightness — below-black bar invisible, +2% barely visible</span></button>
+     <button class="pat-btn" onclick="showPattern('color_bars')" title="SMPTE-style 75% Rec.709 color bars: top section has Gray/Yellow/Cyan/Green/Magenta/Red/Blue bars. Bottom has reverse-order strip, PLUGE section, and 100% white reference.">Color Bars<span class="pat-desc">75% Rec.709 bars + PLUGE section</span></button>
+     <button class="pat-btn" onclick="showPattern('gray_ramp')" title="Top: smooth continuous gradient from black to white using hardware interpolation. Bottom: 11 stepped bars at 0% to 100% in 10% increments. Verify smooth gamma and no banding.">Gray Ramp<span class="pat-desc">Smooth gradient + 11 IRE steps</span></button>
+     <button class="pat-btn" onclick="showPattern('overscan')" title="Border lines at 0%, 2.5%, and 5% from screen edges with corner brackets, center crosshair, and 16:9 aspect ratio guide. All lines should be visible — any cropping indicates overscan is enabled.">Overscan<span class="pat-desc">Borders at 0% / 2.5% / 5% — all must be visible</span></button>
     </div>
    </div>
   </div>
   <div class="pat-section collapsed">
    <div class="pat-section-title" onclick="toggleSection(this)">Grayscale (10-Point)</div>
    <div class="pat-content">
+    <div style="font-size:.65rem;color:var(--text2);margin-bottom:6px;line-height:1.4">Neutral gray patches from 0% (black) to 100% (white) in 10% steps. Use with a meter to measure and correct grayscale tracking / white balance (RGB gains &amp; offsets).</div>
     <div class="pat-grid-sm" id="gs10grid"></div>
    </div>
   </div>
   <div class="pat-section collapsed">
    <div class="pat-section-title" onclick="toggleSection(this)">Grayscale (20-Point)</div>
    <div class="pat-content">
+    <div style="font-size:.65rem;color:var(--text2);margin-bottom:6px;line-height:1.4">Finer 5% step grayscale patches for 20-point white balance calibration. Provides more detail in shadows and highlights than the 10-point set.</div>
     <div class="pat-grid-sm" id="gs20grid"></div>
    </div>
   </div>
   <div class="pat-section collapsed">
    <div class="pat-section-title" onclick="toggleSection(this)">Color Checker</div>
    <div class="pat-content">
+    <div style="font-size:.65rem;color:var(--text2);margin-bottom:6px;line-height:1.4">Primary (RGB) and secondary (CMY) color patches at 75% and 100% stimulus. Use with a colorimeter to verify and adjust the display&#39;s Color Management System (CMS) — hue, saturation, and luminance per color.</div>
     <div style="font-size:.6rem;color:var(--text2);margin-bottom:4px">75% Stimulus</div>
     <div class="pat-grid" id="cc75grid"></div>
     <div style="font-size:.6rem;color:var(--text2);margin:6px 0 4px">100% Stimulus</div>
@@ -303,7 +310,10 @@ cursor:pointer;user-select:none;display:flex;align-items:center;gap:4px}
   </div>
   <div class="pat-section collapsed">
    <div class="pat-section-title" onclick="toggleSection(this)">Saturation Sweeps</div>
-   <div class="pat-content" id="satGrid"></div>
+   <div class="pat-content">
+    <div style="font-size:.65rem;color:var(--text2);margin-bottom:6px;line-height:1.4">Each color at 25%, 50%, 75%, and 100% saturation. Used to measure saturation tracking and fine-tune CMS saturation controls across the full range for each primary and secondary color.</div>
+    <div id="satGrid"></div>
+   </div>
   </div>
 
  </div>
@@ -425,9 +435,8 @@ async function loadConfig(){
  // Derive signal mode from flags
  let sm='sdr';
  if(config.dv_status==='1'||config.is_ll_dovi==='1'||config.is_std_dovi==='1') sm='dv';
- else if(config.is_hdr==='1'){
-  sm=(config.eotf==='3')?'hlg':'hdr10';
- }
+ else if(config.is_hlg==='1'||config.eotf==='3') sm='hlg';
+ else if(config.is_hdr==='1') sm=(config.eotf==='3')?'hlg':'hdr10';
  setVal('signal_mode',sm);
  setVal('max_bpc',config.max_bpc||'8');
  setVal('color_format',config.color_format||'0');

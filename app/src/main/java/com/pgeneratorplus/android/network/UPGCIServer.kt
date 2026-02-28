@@ -40,7 +40,7 @@ import java.net.Socket
  */
 class UPGCIServer(
  private var isHdr: Boolean,
- private val onModeChange: ((hdr: Boolean, bitDepth: Int) -> Unit)? = null
+ private val onModeChange: ((hdr: Boolean, bitDepth: Int, eotf: Int) -> Unit)? = null
 ) {
  companion object {
   private const val TAG = "UPGCIServer"
@@ -186,10 +186,23 @@ class UPGCIServer(
    if (hdrType == "OFF" || hdrType == "SDR" || hdrType == "NONE") {
     isHdr = false
     AppState.setMode(AppState.bitDepth, false)
+    AppState.applyEotfMode(0)
     Log.i(TAG, "Switching to SDR mode (CalMAN request)")
-    onModeChange?.invoke(false, AppState.bitDepth)
+    onModeChange?.invoke(false, AppState.bitDepth, 0)
    } else {
     isHdr = true
+    val eotf = mapHdrTypeToEotf(hdrType)
+    val isDolbyVision = hdrType.contains("DOLBY") || hdrType.contains("DOVI")
+
+    if (isDolbyVision) {
+     Log.i(TAG, "Dolby Vision requested by CalMAN. Entering Dolby Vision mode (EOTF=4).")
+    }
+
+    AppState.applyEotfMode(eotf)
+    AppState.colorimetry = 1 // BT.2020 for HDR modes
+    if (AppState.bitDepth < 10) {
+      AppState.bitDepth = 10
+    }
     AppState.setMode(AppState.bitDepth, true)
 
     if (parts.size >= 13) {
@@ -205,8 +218,8 @@ class UPGCIServer(
      }
     }
 
-    Log.i(TAG, "Switching to HDR mode: $hdrType (CalMAN request)")
-    onModeChange?.invoke(true, AppState.bitDepth)
+    Log.i(TAG, "Switching to HDR mode: $hdrType (CalMAN request, EOTF=$eotf)")
+    onModeChange?.invoke(true, AppState.bitDepth, eotf)
    }
   } catch (e: Exception) {
    Log.e(TAG, "Failed to parse CONF_HDR: $params", e)
@@ -227,7 +240,7 @@ class UPGCIServer(
      if (bits != null && (bits == 8 || bits == 10 || bits == 12)) {
       AppState.setMode(bits, AppState.hdr)
       Log.i(TAG, "Bit depth set to $bits by CalMAN")
-      onModeChange?.invoke(AppState.hdr, bits)
+      onModeChange?.invoke(AppState.hdr, bits, AppState.eotf)
      }
     }
     p.startsWith("Range ", ignoreCase = true) -> {
@@ -241,23 +254,39 @@ class UPGCIServer(
     p.equals("Gamma-HDR", ignoreCase = true) -> {
      if (!isHdr) {
       isHdr = true
+        AppState.applyEotfMode(2) // Default HDR path is PQ
+      AppState.colorimetry = 1 // BT.2020
+      if (AppState.bitDepth < 10) {
+       AppState.bitDepth = 10
+      }
       AppState.setMode(AppState.bitDepth, true)
       Log.i(TAG, "Switching to HDR mode (Gamma-HDR)")
-      onModeChange?.invoke(true, AppState.bitDepth)
+      onModeChange?.invoke(true, AppState.bitDepth, AppState.eotf)
      }
     }
     p.equals("Gamma-SDR", ignoreCase = true) -> {
      if (isHdr) {
       isHdr = false
+      AppState.applyEotfMode(0)
       AppState.setMode(AppState.bitDepth, false)
       Log.i(TAG, "Switching to SDR mode (Gamma-SDR)")
-      onModeChange?.invoke(false, AppState.bitDepth)
+      onModeChange?.invoke(false, AppState.bitDepth, 0)
      }
     }
     else -> Log.d(TAG, "Unknown CONF_LEVEL param: $p")
    }
   } catch (e: Exception) {
    Log.e(TAG, "Failed to parse CONF_LEVEL: $params", e)
+  }
+ }
+
+ private fun mapHdrTypeToEotf(hdrType: String): Int {
+  val t = hdrType.uppercase()
+  return when {
+   t.contains("HLG") -> 3
+     t.contains("DOLBY") || t.contains("DOVI") -> 4
+     t.contains("PQ") || t.contains("ST2084") || t.contains("HDR10") -> 2
+   else -> 2
   }
  }
 

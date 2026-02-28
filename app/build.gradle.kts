@@ -12,7 +12,11 @@ android {
         minSdk = 24
         targetSdk = 34
         versionCode = 1
-        versionName = "2.0.1"
+        versionName = "1.0.1"
+
+        ndk {
+            abiFilters += listOf("armeabi-v7a", "arm64-v8a", "x86", "x86_64")
+        }
     }
 
     buildTypes {
@@ -33,6 +37,13 @@ android {
     kotlinOptions {
         jvmTarget = "1.8"
     }
+
+    externalNativeBuild {
+        cmake {
+            path = file("src/main/cpp/CMakeLists.txt")
+            version = "3.22.1"
+        }
+    }
 }
 
 dependencies {
@@ -47,4 +58,10 @@ dependencies {
 
     // Gson for JSON API responses
     implementation("com.google.code.gson:gson:2.10.1")
+
+    // Video pipeline probe (ExoPlayer / Media3)
+    implementation("androidx.media3:media3-exoplayer:1.3.1")
+    implementation("androidx.media3:media3-exoplayer-dash:1.3.1")
+    implementation("androidx.media3:media3-exoplayer-hls:1.3.1")
+    implementation("androidx.media3:media3-ui:1.3.1")
 }

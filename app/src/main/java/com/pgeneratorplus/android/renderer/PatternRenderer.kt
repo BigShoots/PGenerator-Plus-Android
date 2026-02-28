@@ -85,6 +85,12 @@ void main() {
   GLES30.glGenBuffers(1, vboBuf, 0)
   vboId = vboBuf[0]
 
+  // Set HDR static metadata (SMPTE2086 + CTA861.3) on the EGL surface.
+  // Must be done on GL thread with active EGL context.
+  if (AppState.hdr) {
+   com.pgeneratorplus.android.hdr.HdrEglHelper.setEglHdrMetadata()
+  }
+
   Log.i(TAG, "Renderer initialized (GLES 3.0)")
  }
 

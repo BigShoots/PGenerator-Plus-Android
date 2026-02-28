@@ -1,14 +1,20 @@
 package com.pgeneratorplus.android
 
+import android.content.Intent
 import android.graphics.PixelFormat
+import android.graphics.SurfaceTexture
 import android.opengl.GLSurfaceView
 import android.os.Bundle
 import android.util.Log
 import android.view.KeyEvent
+import android.view.Surface
+import android.view.SurfaceView
 import android.view.WindowManager
+import android.widget.FrameLayout
 import androidx.appcompat.app.AppCompatActivity
 import com.pgeneratorplus.android.hdr.HdrController
 import com.pgeneratorplus.android.hdr.HdrEglHelper
+import com.pgeneratorplus.android.hdr.HdrVideoOverlay
 import com.pgeneratorplus.android.model.AppState
 import com.pgeneratorplus.android.model.DrawCommand
 import com.pgeneratorplus.android.network.*
@@ -48,11 +54,121 @@ class PatternActivity : AppCompatActivity() {
  private var mode: String = "pgen"
  private var isHdr = false
  private var hdrEglActive = false
+ private var suppressSdrRestoreOnPause = false
  private var bitDepth = 8
  private var eotf = 0
  private var colorFormat = 0
  private var colorimetry = 0
  private var quantRange = 0
+ private var hdrVideoOverlay: HdrVideoOverlay? = null
+ private var hdrDecoderSurfaceView: SurfaceView? = null
+
+ private fun normalizeHdrRequest() {
+  if (!isHdr) {
+   eotf = 0
+   return
+  }
+
+  if (eotf != 2 && eotf != 3 && eotf != 4) {
+   Log.w(TAG, "HDR requested with invalid EOTF=$eotf, defaulting to PQ (2)")
+   eotf = 2
+  }
+
+  if (bitDepth < 10) {
+   Log.i(TAG, "HDR requested with bitDepth=$bitDepth, promoting to 10-bit")
+   bitDepth = 10
+  }
+
+  if (colorimetry == 0) {
+   colorimetry = 1
+  }
+ }
+
+ /**
+  * Set HDR headroom on the SurfaceView's SurfaceControl via
+  * SurfaceControl.Transaction (API 34+).
+  *
+  * This tells SurfaceFlinger that this layer contains HDR content
+  * with brightness extending beyond the SDR white point. On devices
+  * where HWC doesn't auto-detect HDR from buffer dataspace
+  * (e.g. Chromecast with Google TV), this is needed to trigger
+  * the display to switch to HDR output mode.
+  */
+ private fun setSurfaceControlHdrHeadroom() {
+  if (android.os.Build.VERSION.SDK_INT < 34) return
+  try {
+   val sc = glView.surfaceControl
+   if (sc == null || !sc.isValid) {
+    Log.w(TAG, "SurfaceControl not available for HDR headroom")
+    return
+   }
+   // setExtendedRangeBrightness (API 34) tells SurfaceFlinger the buffer
+   // contains content brighter than SDR white point.
+   // currentBufferRatio=10.0 = PQ content up to 10x SDR brightness
+   // desiredRatio=10.0 = request 10x HDR headroom from display
+   android.view.SurfaceControl.Transaction()
+    .setExtendedRangeBrightness(sc, 10.0f, 10.0f)
+    .apply()
+   Log.i(TAG, "SurfaceControl HDR headroom set via setExtendedRangeBrightness")
+
+   // Also try setDesiredHdrHeadroom (API 35) via reflection for newer devices
+   try {
+    val txn = android.view.SurfaceControl.Transaction()
+    val method = txn.javaClass.getMethod(
+     "setDesiredHdrHeadroom",
+     android.view.SurfaceControl::class.java,
+     Float::class.javaPrimitiveType
+    )
+    method.invoke(txn, sc, 10.0f)
+    txn.apply()
+    Log.i(TAG, "SurfaceControl HDR headroom set via setDesiredHdrHeadroom")
+   } catch (e: NoSuchMethodException) {
+    Log.d(TAG, "setDesiredHdrHeadroom not available (API 35+)")
+   }
+  } catch (e: Exception) {
+   Log.w(TAG, "Failed to set SurfaceControl HDR headroom: ${e.message}")
+  }
+ }
+
+ /**
+  * Start the HDR video overlay to trigger the display pipeline to enter HDR mode.
+  * Uses the existing video decoder SurfaceView that's behind our GL view.
+  * A MediaCodec HEVC decoder with HDR10 parameters outputs a frame to the
+  * SurfaceView, triggering the Amlogic video HAL to switch HDMI output
+  * to BT2020 PQ (HDR10).
+  */
+ private fun startHdrVideoOverlay() {
+  if (hdrVideoOverlay != null) return
+  val sv = hdrDecoderSurfaceView ?: return
+  val surface = sv.holder.surface
+  if (surface == null || !surface.isValid) {
+   Log.w(TAG, "HDR decoder surface not ready, waiting for callback")
+   return
+  }
+  hdrVideoOverlay = HdrVideoOverlay()
+  Thread {
+   // Ensure 10-bit decode is enabled (critical for Chromecast HDR)
+   val tenBitOk = HdrController.ensure10BitDecodeSupport()
+   if (!tenBitOk) {
+    Log.w(TAG, "10-bit decode not enabled — HDR may not activate on HDMI output. " +
+     "Run: adb shell setprop debug.vendor.media.c2.vdec.support_10bit true")
+   }
+   val success = hdrVideoOverlay?.start(surface, eotf) ?: false
+   if (success) {
+    Log.i(TAG, "HDR video overlay started successfully (10bit=$tenBitOk)")
+   } else {
+    Log.w(TAG, "HDR video overlay failed to start")
+   }
+  }.start()
+ }
+
+ /**
+  * Stop the HDR video overlay and release resources.
+  */
+ private fun stopHdrVideoOverlay() {
+  hdrVideoOverlay?.stop()
+  hdrVideoOverlay = null
+ }
 
  override fun onCreate(savedInstanceState: Bundle?) {
   super.onCreate(savedInstanceState)
@@ -65,6 +181,14 @@ class PatternActivity : AppCompatActivity() {
   colorFormat = intent.getIntExtra("colorFormat", 0)
   colorimetry = intent.getIntExtra("colorimetry", 0)
   quantRange = intent.getIntExtra("quantRange", 0)
+  normalizeHdrRequest()
+
+  // Set HDR color mode BEFORE creating the surface — this tells SurfaceFlinger
+  // that this activity renders HDR content, triggering HDR output negotiation.
+  if (isHdr && android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+   window.colorMode = android.content.pm.ActivityInfo.COLOR_MODE_HDR
+   Log.i(TAG, "Window colorMode set to HDR (before surface creation)")
+  }
 
   // Fullscreen immersive
   window.setFlags(
@@ -87,9 +211,10 @@ class PatternActivity : AppCompatActivity() {
    setEGLContextClientVersion(3)
 
    if (isHdr) {
-    // Request FP16 pixel format for HDR
-    holder.setFormat(PixelFormat.RGBA_F16)
-    // Configure RGBA16F EGL + BT2020_PQ/HLG colorspace
+    // Request 10-bit pixel format first (more likely to get HWC DEVICE composition),
+    // falling back to FP16 if not available
+    holder.setFormat(PixelFormat.RGBA_1010102)
+    // Configure RGBA1010102 or RGBA16F EGL + BT2020_PQ/HLG colorspace
     hdrEglActive = HdrEglHelper.configureHdrSurface(this, eotf)
     if (hdrEglActive) {
      Log.i(TAG, "HDR EGL surface configured (EOTF=$eotf)")
@@ -104,7 +229,65 @@ class PatternActivity : AppCompatActivity() {
    setRenderer(PatternRenderer())
    renderMode = GLSurfaceView.RENDERMODE_CONTINUOUSLY
   }
-  setContentView(glView)
+
+  if (isHdr) {
+   // Use a FrameLayout with a video decoder SurfaceView behind the GL view.
+   // The decoder SurfaceView receives HDR10 HEVC output which triggers the
+   // Amlogic video pipeline to switch HDMI to BT2020 PQ mode.
+   val frameLayout = FrameLayout(this)
+
+   // Create a full-screen SurfaceView for the video decoder output (behind GL view).
+   // Must be full-screen for the Amlogic HWC to trigger HDR mode switch.
+   // A tiny (1x1) layer is not sufficient — the HWC needs a visible video
+   // overlay layer covering the display to activate BT2020 PQ output.
+   hdrDecoderSurfaceView = SurfaceView(this).also { sv ->
+    sv.setZOrderMediaOverlay(false)  // Behind main content
+    sv.holder.addCallback(object : android.view.SurfaceHolder.Callback {
+     override fun surfaceCreated(holder: android.view.SurfaceHolder) {
+      Log.i(TAG, "HDR decoder surface created, starting overlay...")
+      startHdrVideoOverlay()
+     }
+     override fun surfaceChanged(holder: android.view.SurfaceHolder, f: Int, w: Int, h: Int) {}
+     override fun surfaceDestroyed(holder: android.view.SurfaceHolder) {
+      stopHdrVideoOverlay()
+     }
+    })
+    frameLayout.addView(sv, FrameLayout.LayoutParams(
+     FrameLayout.LayoutParams.MATCH_PARENT,
+     FrameLayout.LayoutParams.MATCH_PARENT
+    ))
+   }
+
+   // GL view on top
+   glView.setZOrderOnTop(true)
+   frameLayout.addView(glView, FrameLayout.LayoutParams(
+    FrameLayout.LayoutParams.MATCH_PARENT,
+    FrameLayout.LayoutParams.MATCH_PARENT
+   ))
+   setContentView(frameLayout)
+  } else {
+   setContentView(glView)
+  }
+
+  // Backup HDR setup: if EGL colorspace + factory dataspace both failed,
+  // try once more when the surface is created via SurfaceHolder callback.
+  // Also set SurfaceControl HDR headroom to signal HDR to the compositor.
+  if (isHdr) {
+   glView.holder.addCallback(object : android.view.SurfaceHolder.Callback {
+    override fun surfaceCreated(holder: android.view.SurfaceHolder) {
+     if (!HdrEglHelper.isHdrActive) {
+      Log.i(TAG, "SurfaceHolder callback: retrying HDR dataspace setup")
+      HdrEglHelper.setBufferDataSpace(holder.surface, eotf)
+     }
+     // Set HDR headroom on SurfaceControl (API 34+) to tell SurfaceFlinger
+     // this layer contains HDR content. This is critical on devices where
+     // the HWC doesn't detect HDR from buffer dataspace alone.
+     setSurfaceControlHdrHeadroom()
+    }
+    override fun surfaceChanged(holder: android.view.SurfaceHolder, format: Int, w: Int, h: Int) {}
+    override fun surfaceDestroyed(holder: android.view.SurfaceHolder) {}
+   })
+  }
 
   HdrController.keepScreenOn(this, true)
 
@@ -121,8 +304,7 @@ class PatternActivity : AppCompatActivity() {
 
   // Apply all signal settings to AppState
   AppState.bitDepth = bitDepth
-  AppState.hdr = isHdr
-  AppState.eotf = eotf
+  AppState.applyEotfMode(eotf)
   AppState.colorFormat = colorFormat
   AppState.colorimetry = colorimetry
   AppState.quantRange = quantRange
@@ -132,6 +314,8 @@ class PatternActivity : AppCompatActivity() {
   if (isHdr) {
    HdrController.setHdrMode(true, this)
    HdrController.applySignalSettings(eotf, colorFormat, colorimetry, bitDepth)
+   // Start HDR video overlay to trigger display pipeline HDR mode
+   startHdrVideoOverlay()
   } else {
    HdrController.setHdrMode(false, this)
    HdrController.applySignalSettings(0, colorFormat, colorimetry, bitDepth)
@@ -143,9 +327,10 @@ class PatternActivity : AppCompatActivity() {
  override fun onPause() {
   AppState.patternActivityActive = false
   stopServers()
+  stopHdrVideoOverlay()
   glView.onPause()
 
-  if (isHdr) {
+  if (isHdr && !suppressSdrRestoreOnPause) {
    HdrController.setHdrMode(false, this)
    // Restore SDR on HDMI output
    HdrController.applySignalSettings(0, colorFormat, colorimetry, bitDepth)
@@ -186,14 +371,33 @@ class PatternActivity : AppCompatActivity() {
   }, "PGen-Server").also { it.start() }
 
   // Start UPGCI server
-  upgciServer = UPGCIServer(isHdr) { hdr, bits ->
+  upgciServer = UPGCIServer(isHdr) { hdr, bits, targetEotf ->
    runOnUiThread {
-    isHdr = hdr
-    bitDepth = bits
-    HdrController.setHdrMode(hdr, this)
-    if (hdr) {
-     HdrController.applySignalSettings(AppState.eotf, AppState.colorFormat, AppState.colorimetry, bits)
+    val eotfForMode = if (hdr) {
+     if (targetEotf == 2 || targetEotf == 3 || targetEotf == 4) targetEotf else 2
+    } else {
+     0
     }
+    val needsEglRecreate = !HdrController.hasSysfsHdrControl() &&
+     (isHdr != hdr || (hdr && eotf != eotfForMode))
+
+    isHdr = hdr
+    bitDepth = if (hdr && bits < 10) 10 else bits
+    eotf = eotfForMode
+    if (hdr && colorimetry == 0) {
+     colorimetry = 1
+    }
+    AppState.bitDepth = bitDepth
+    AppState.applyEotfMode(eotfForMode)
+
+    if (needsEglRecreate) {
+     Log.i(TAG, "UPGCI mode change requires EGL recreate: hdr=$hdr eotf=$eotfForMode")
+     restartForModeChange()
+     return@runOnUiThread
+    }
+
+    HdrController.setHdrMode(hdr, this)
+    HdrController.applySignalSettings(eotfForMode, AppState.colorFormat, AppState.colorimetry, bits)
    }
   }
   upgciThread = Thread({
@@ -203,6 +407,22 @@ class PatternActivity : AppCompatActivity() {
   AppState.patternMode = AppState.PatternMode.PGEN
   Log.i(TAG, "PGen mode: All servers started")
  }
+
+   private fun restartForModeChange() {
+    suppressSdrRestoreOnPause = true
+    val restartIntent = Intent(this, PatternActivity::class.java).apply {
+     putExtra("mode", mode)
+     putExtra("hdr", isHdr)
+     putExtra("bits", bitDepth)
+     putExtra("eotf", eotf)
+     putExtra("colorFormat", colorFormat)
+     putExtra("colorimetry", colorimetry)
+     putExtra("quantRange", quantRange)
+    }
+    finish()
+    startActivity(restartIntent)
+    overridePendingTransition(0, 0)
+   }
 
  private fun startResolveMode(hdr: Boolean) {
   val ip = intent.getStringExtra("resolveIp") ?: "192.168.1.100"

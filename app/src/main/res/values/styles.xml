@@ -27,6 +27,7 @@
   <item name="android:textColorPrimary">#e6edf3</item>
   <item name="android:textColorSecondary">#8b949e</item>
   <item name="android:windowTitleStyle">@style/SelectorDialogTitle</item>
+  <item name="android:listChoiceIndicatorSingle">?android:attr/listChoiceIndicatorSingle</item>
  </style>
 
  <style name="SelectorDialogTitle" parent="TextAppearance.AppCompat.Title">
