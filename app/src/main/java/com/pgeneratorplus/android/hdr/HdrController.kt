@@ -61,6 +61,40 @@ object HdrController {
  private const val VECM_HDR_MODE_PATH = "/sys/module/am_vecm/parameters/hdr_mode"
  private const val VECM_HDR_POLICY_PATH = "/sys/module/am_vecm/parameters/hdr_policy"
 
+ // Cache root access availability (checked once)
+ private var rootAccessChecked = false
+ private var rootAccessAvailable = false
+
+ /**
+  * Check (and cache) whether root (su) access is available.
+  * Only runs the actual check once; returns cached result after that.
+  */
+ fun hasRootAccess(): Boolean {
+  if (rootAccessChecked) return rootAccessAvailable
+  rootAccessChecked = true
+  rootAccessAvailable = try {
+   val process = ProcessBuilder("su", "-c", "id")
+    .redirectErrorStream(true)
+    .start()
+   val output = process.inputStream.bufferedReader().readText().trim()
+   val exitCode = process.waitFor()
+   val hasRoot = exitCode == 0 && output.contains("uid=0")
+   Log.i(TAG, "Root access check: ${if (hasRoot) "AVAILABLE" else "NOT AVAILABLE"} (output=$output)")
+   hasRoot
+  } catch (e: Exception) {
+   Log.i(TAG, "Root access check: NOT AVAILABLE (${e.message})")
+   false
+  }
+  return rootAccessAvailable
+ }
+
+ /**
+  * Check if sysfs HDR control is possible (needs root + Amlogic sysfs).
+  */
+ fun hasSysfsHdrControl(): Boolean {
+  return isAmlogicDevice() && File(AMHDMITX_PATH).exists() && hasRootAccess()
+ }
+
  /**
   * Check if this is an Amlogic-based device.
   */
@@ -98,8 +132,8 @@ object HdrController {
  fun getHdrInfo(context: Context): String {
   val sb = StringBuilder()
 
-  // Try Amlogic sysfs first
-  if (isAmlogicDevice()) {
+  // Try Amlogic sysfs first (only if root + sysfs available)
+  if (hasSysfsHdrControl()) {
    val hdrCap = readSysfs(HDR_CAP_PATH)
    if (hdrCap.isNotEmpty()) {
     sb.append("Amlogic HDR capabilities:\n$hdrCap\n")
@@ -108,6 +142,16 @@ object HdrController {
    if (hdrStatus.isNotEmpty()) {
     sb.append("Current HDR status: $hdrStatus\n")
    }
+  }
+
+  // Report EGL HDR state if active
+  if (HdrEglHelper.activeHdrColorspace != 0) {
+   val csName = when (HdrEglHelper.activeHdrColorspace) {
+    0x3340 -> "BT2020_PQ (HDR10)"
+    0x3540 -> "BT2020_HLG"
+    else -> "0x${HdrEglHelper.activeHdrColorspace.toString(16)}"
+   }
+   sb.append("EGL HDR colorspace: $csName\n")
   }
 
   // Android Display API (API 26+)
@@ -152,9 +196,8 @@ object HdrController {
   * @param activity Current activity (for window color mode)
   */
  fun setHdrMode(hdr: Boolean, activity: Activity?) {
-  if (isAmlogicDevice()) {
-   // Don't set config here — applySignalSettings handles the full
-   // HDR/SDR switch with the correct EOTF. Just set am_vecm processing.
+  if (hasSysfsHdrControl()) {
+   // Set am_vecm processing mode (rooted Amlogic path)
    if (hdr) {
     writeSysfs(VECM_HDR_MODE_PATH, "1")
     writeSysfs(VECM_HDR_POLICY_PATH, "0")
@@ -164,6 +207,8 @@ object HdrController {
     writeSysfs(VECM_HDR_POLICY_PATH, "0")
     Log.i(TAG, "Amlogic vecm HDR processing disabled")
    }
+  } else if (isAmlogicDevice()) {
+   Log.i(TAG, "Amlogic device without root — skipping sysfs vecm writes, using EGL path")
   }
 
   // Android Display API
@@ -201,7 +246,8 @@ object HdrController {
   Log.i(TAG, "Applying signal settings: EOTF=$eotf colorFormat=$colorFormat " +
    "colorimetry=$colorimetry bitDepth=$bitDepth")
 
-  if (isAmlogicDevice()) {
+  if (hasSysfsHdrControl()) {
+   // Rooted Amlogic path — full sysfs control
    // Step 1: Set color format and bit depth via attr
    val formatStr = when (colorFormat) {
     0 -> "rgb"
@@ -236,6 +282,11 @@ object HdrController {
    // Also verify attr
    val currentAttr = readSysfs(ATTR_PATH)
    Log.i(TAG, "HDMI attr after apply: $currentAttr")
+  } else {
+   // Non-root path: HDR is handled via EGL surface (HdrEglHelper) +
+   // window.colorMode (set in setHdrMode). Sysfs writes are not possible.
+   val hdrMethod = if (HdrEglHelper.activeHdrColorspace != 0) "EGL BT2020_PQ" else "window colorMode only"
+   Log.i(TAG, "Non-root device — HDR handled via $hdrMethod (EOTF=$eotf)")
   }
  }
 
@@ -252,8 +303,8 @@ object HdrController {
   * @param maxDML Maximum display mastering luminance (nits)
   */
  fun setHdrMetadata(maxCLL: Int, maxFALL: Int, maxDML: Int) {
-  if (!isAmlogicDevice()) {
-   Log.w(TAG, "HDR metadata requires Amlogic device")
+  if (!hasSysfsHdrControl()) {
+   Log.d(TAG, "HDR metadata via sysfs not available (no root or no Amlogic sysfs)")
    return
   }
 
@@ -288,10 +339,10 @@ object HdrController {
   * Falls back to Android DisplayMetrics.
   */
  fun getDisplayResolution(context: Context): Pair<Int, Int> {
-  val isAmlogic = isAmlogicDevice()
-  Log.i(TAG, "getDisplayResolution: isAmlogic=$isAmlogic")
+  val hasSysfs = hasSysfsHdrControl()
+  Log.i(TAG, "getDisplayResolution: hasSysfs=$hasSysfs")
 
-  if (isAmlogic) {
+  if (hasSysfs) {
    // Primary: /sys/class/display/mode returns e.g. "2160p60hz", "1080p60hz"
    val mode = readSysfs(DISPLAY_MODE_PATH)
    Log.i(TAG, "getDisplayResolution: display/mode='$mode'")
@@ -319,13 +370,31 @@ object HdrController {
    }
   }
 
-  // Fallback: Android Display API
+  // Fallback: Android Display.Mode API (API 23+) — gives actual display output resolution
+  // This is more accurate than DisplayMetrics which gives the app rendering resolution
+  if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+   try {
+    val wm = context.getSystemService(Context.WINDOW_SERVICE) as WindowManager
+    val display = wm.defaultDisplay
+    val mode = display.mode
+    val w = mode.physicalWidth
+    val h = mode.physicalHeight
+    if (w > 0 && h > 0) {
+     Log.i(TAG, "getDisplayResolution: Display.Mode ${w}x${h}")
+     return Pair(w, h)
+    }
+   } catch (e: Exception) {
+    Log.w(TAG, "getDisplayResolution: Display.Mode failed", e)
+   }
+  }
+
+  // Fallback: Android DisplayMetrics (gives app rendering resolution, not display)
   try {
    val wm = context.getSystemService(Context.WINDOW_SERVICE) as WindowManager
    val display = wm.defaultDisplay
    val metrics = android.util.DisplayMetrics()
    display.getRealMetrics(metrics)
-   Log.i(TAG, "getDisplayResolution: Android fallback ${metrics.widthPixels}x${metrics.heightPixels}")
+   Log.i(TAG, "getDisplayResolution: DisplayMetrics fallback ${metrics.widthPixels}x${metrics.heightPixels}")
    return Pair(metrics.widthPixels, metrics.heightPixels)
   } catch (e: Exception) {
    Log.e(TAG, "Failed to get display resolution", e)
@@ -371,10 +440,15 @@ object HdrController {
   * Returns e.g. "SDR", "HDR10-GAMMA_ST2084", "HDR10-GAMMA_HLG"
   */
  fun getHdrStatus(): String {
-  if (isAmlogicDevice()) {
+  if (hasSysfsHdrControl()) {
    return readSysfs(HDR_STATUS_PATH).ifEmpty { "unknown" }
   }
-  return "unknown"
+  // Non-root: report EGL HDR state
+  return when (HdrEglHelper.activeHdrColorspace) {
+   0x3340 -> "HDR10-EGL_BT2020_PQ"
+   0x3540 -> "HLG-EGL_BT2020_HLG"
+   else -> "SDR"
+  }
  }
 
  /**
@@ -394,10 +468,10 @@ object HdrController {
   * Get Amlogic display capabilities (supported resolutions/refresh rates).
   */
  fun getDisplayCapabilities(): String {
-  return if (isAmlogicDevice()) {
+  return if (hasSysfsHdrControl()) {
    readSysfs(DISP_CAP_PATH)
   } else {
-   "Display capabilities not available on non-Amlogic devices"
+   "Display capabilities not available (no sysfs access)"
   }
  }
 
@@ -426,14 +500,16 @@ object HdrController {
    }
   } catch (_: Exception) { }
 
-  // Try via su
-  try {
-   val result = suExec("cat $path")
-   if (result != null) {
-    Log.d(TAG, "Read $path (su): $result")
-    return result.trim()
-   }
-  } catch (_: Exception) { }
+  // Try via su (only if root is available)
+  if (hasRootAccess()) {
+   try {
+    val result = suExec("cat $path")
+    if (result != null) {
+     Log.d(TAG, "Read $path (su): $result")
+     return result.trim()
+    }
+   } catch (_: Exception) { }
+  }
 
   Log.w(TAG, "Failed to read $path")
   return ""
@@ -446,12 +522,14 @@ object HdrController {
   * cannot write to sysfs directly even on rooted devices.
   */
  private fun writeSysfs(path: String, value: String) {
-  // Always try su first — app process cannot write to sysfs directly
+  // Try su first — app process cannot write to sysfs directly
   // su -c spawns a root shell that interprets the redirect properly
-  val suResult = suExec("echo '$value' > $path")
-  if (suResult != null) {
-   Log.i(TAG, "Wrote '$value' to $path (su)")
-   return
+  if (hasRootAccess()) {
+   val suResult = suExec("echo '$value' > $path")
+   if (suResult != null) {
+    Log.i(TAG, "Wrote '$value' to $path (su)")
+    return
+   }
   }
 
   // Fallback: try direct file write (unlikely to work from app context)

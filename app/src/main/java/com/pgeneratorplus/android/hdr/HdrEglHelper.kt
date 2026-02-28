@@ -1,0 +1,205 @@
+package com.pgeneratorplus.android.hdr
+
+import android.opengl.GLSurfaceView
+import android.util.Log
+import javax.microedition.khronos.egl.EGL10
+import javax.microedition.khronos.egl.EGLConfig
+import javax.microedition.khronos.egl.EGLContext
+import javax.microedition.khronos.egl.EGLDisplay
+import javax.microedition.khronos.egl.EGLSurface
+
+/**
+ * EGL helper classes for HDR rendering.
+ *
+ * On non-rooted devices (e.g. Chromecast with Google TV), we cannot write to
+ * Amlogic sysfs to trigger HDR. Instead we use Android's display framework:
+ *
+ * 1. Create an EGL surface with RGBA16F (half-float) pixel format
+ * 2. Set EGL_GL_COLORSPACE_BT2020_PQ_EXT on the window surface
+ * 3. Set window.colorMode = COLOR_MODE_HDR
+ *
+ * This tells SurfaceFlinger the content is BT.2020 PQ HDR, which triggers
+ * HDR output negotiation with the display — no root needed.
+ *
+ * For HLG: use EGL_GL_COLORSPACE_BT2020_HLG_EXT instead.
+ */
+object HdrEglHelper {
+
+ private const val TAG = "HdrEglHelper"
+
+ // EGL extension constants (not in javax.microedition.khronos.egl.EGL10)
+ private const val EGL_OPENGL_ES3_BIT = 0x40
+ private const val EGL_GL_COLORSPACE_KHR = 0x309D
+ private const val EGL_GL_COLORSPACE_BT2020_PQ_EXT = 0x3340
+ private const val EGL_GL_COLORSPACE_BT2020_HLG_EXT = 0x3540
+ private const val EGL_GL_COLORSPACE_SRGB_KHR = 0x3089
+ private const val EGL_COLOR_COMPONENT_TYPE_EXT = 0x3339
+ private const val EGL_COLOR_COMPONENT_TYPE_FLOAT_EXT = 0x333B
+
+ /** Track which HDR mode was successfully applied */
+ var activeHdrColorspace = 0
+  private set
+
+ /**
+  * Configure a GLSurfaceView for HDR rendering.
+  *
+  * Attempts to set up RGBA16F + BT2020_PQ (or HLG) EGL surface.
+  * Falls back to standard RGBA8 if HDR EGL is not supported.
+  *
+  * @param glView The GLSurfaceView to configure
+  * @param eotf EOTF: 2=PQ (HDR10), 3=HLG
+  * @return true if HDR EGL was successfully configured
+  */
+ fun configureHdrSurface(glView: GLSurfaceView, eotf: Int): Boolean {
+  val colorspace = when (eotf) {
+   2 -> EGL_GL_COLORSPACE_BT2020_PQ_EXT
+   3 -> EGL_GL_COLORSPACE_BT2020_HLG_EXT
+   else -> 0
+  }
+
+  if (colorspace == 0) {
+   Log.w(TAG, "EOTF $eotf is not HDR, skipping HDR EGL setup")
+   return false
+  }
+
+  // Set RGBA16F config chooser for HDR
+  glView.setEGLConfigChooser(HdrConfigChooser())
+
+  // Set window surface factory with HDR colorspace
+  glView.setEGLWindowSurfaceFactory(HdrWindowSurfaceFactory(colorspace))
+
+  Log.i(TAG, "Configured GLSurfaceView for HDR (EOTF=$eotf, " +
+   "colorspace=0x${colorspace.toString(16)})")
+  return true
+ }
+
+ /**
+  * EGL config chooser that selects RGBA16F (half-float) for HDR rendering.
+  *
+  * Falls back to RGBA8 if no FP16 config is available (should not happen
+  * on any device with GLES 3.0+ support).
+  */
+ class HdrConfigChooser : GLSurfaceView.EGLConfigChooser {
+
+  override fun chooseConfig(egl: EGL10, display: EGLDisplay): EGLConfig {
+   // First try: RGBA16F with float component type
+   var config = tryChooseConfig(egl, display, intArrayOf(
+    EGL10.EGL_RENDERABLE_TYPE, EGL_OPENGL_ES3_BIT,
+    EGL10.EGL_RED_SIZE, 16,
+    EGL10.EGL_GREEN_SIZE, 16,
+    EGL10.EGL_BLUE_SIZE, 16,
+    EGL10.EGL_ALPHA_SIZE, 16,
+    EGL_COLOR_COMPONENT_TYPE_EXT, EGL_COLOR_COMPONENT_TYPE_FLOAT_EXT,
+    EGL10.EGL_DEPTH_SIZE, 0,
+    EGL10.EGL_STENCIL_SIZE, 0,
+    EGL10.EGL_NONE
+   ))
+   if (config != null) {
+    Log.i(TAG, "Selected RGBA16F EGL config for HDR")
+    return config
+   }
+
+   // Second try: RGBA1010102 (10-bit per channel)
+   config = tryChooseConfig(egl, display, intArrayOf(
+    EGL10.EGL_RENDERABLE_TYPE, EGL_OPENGL_ES3_BIT,
+    EGL10.EGL_RED_SIZE, 10,
+    EGL10.EGL_GREEN_SIZE, 10,
+    EGL10.EGL_BLUE_SIZE, 10,
+    EGL10.EGL_ALPHA_SIZE, 2,
+    EGL10.EGL_DEPTH_SIZE, 0,
+    EGL10.EGL_STENCIL_SIZE, 0,
+    EGL10.EGL_NONE
+   ))
+   if (config != null) {
+    Log.i(TAG, "Selected RGBA1010102 EGL config for HDR")
+    return config
+   }
+
+   // Fallback: standard RGBA8
+   config = tryChooseConfig(egl, display, intArrayOf(
+    EGL10.EGL_RENDERABLE_TYPE, EGL_OPENGL_ES3_BIT,
+    EGL10.EGL_RED_SIZE, 8,
+    EGL10.EGL_GREEN_SIZE, 8,
+    EGL10.EGL_BLUE_SIZE, 8,
+    EGL10.EGL_ALPHA_SIZE, 8,
+    EGL10.EGL_DEPTH_SIZE, 0,
+    EGL10.EGL_STENCIL_SIZE, 0,
+    EGL10.EGL_NONE
+   ))
+   if (config != null) {
+    Log.w(TAG, "Falling back to RGBA8 EGL config (no HDR pixel format available)")
+    return config
+   }
+
+   throw RuntimeException("No suitable EGL config found")
+  }
+
+  private fun tryChooseConfig(egl: EGL10, display: EGLDisplay, attribs: IntArray): EGLConfig? {
+   val numConfigs = IntArray(1)
+   if (!egl.eglChooseConfig(display, attribs, null, 0, numConfigs)) {
+    return null
+   }
+   if (numConfigs[0] <= 0) return null
+
+   val configs = arrayOfNulls<EGLConfig>(numConfigs[0])
+   if (!egl.eglChooseConfig(display, attribs, configs, numConfigs[0], numConfigs)) {
+    return null
+   }
+   return configs[0]
+  }
+ }
+
+ /**
+  * EGL window surface factory that sets BT.2020 PQ or HLG colorspace
+  * on the surface. This is the key to triggering HDR output on non-rooted
+  * devices — SurfaceFlinger sees the HDR dataspace and negotiates HDR
+  * with the display.
+  */
+ class HdrWindowSurfaceFactory(
+  private val colorspace: Int
+ ) : GLSurfaceView.EGLWindowSurfaceFactory {
+
+  override fun createWindowSurface(
+   egl: EGL10,
+   display: EGLDisplay,
+   config: EGLConfig,
+   nativeWindow: Any
+  ): EGLSurface {
+   // Try creating surface with HDR colorspace attribute
+   val hdrAttribs = intArrayOf(
+    EGL_GL_COLORSPACE_KHR, colorspace,
+    EGL10.EGL_NONE
+   )
+
+   try {
+    val surface = egl.eglCreateWindowSurface(display, config, nativeWindow, hdrAttribs)
+    if (surface != null && surface != EGL10.EGL_NO_SURFACE) {
+     val error = egl.eglGetError()
+     if (error == EGL10.EGL_SUCCESS) {
+      activeHdrColorspace = colorspace
+      Log.i(TAG, "Created EGL surface with HDR colorspace 0x${colorspace.toString(16)}")
+      return surface
+     }
+     Log.w(TAG, "EGL surface created but with error: 0x${error.toString(16)}")
+    }
+   } catch (e: Exception) {
+    Log.w(TAG, "Failed to create HDR EGL surface: ${e.message}")
+   }
+
+   // Fallback: create standard surface without colorspace attribute
+   Log.w(TAG, "HDR colorspace not supported, creating standard EGL surface")
+   activeHdrColorspace = 0
+   val surface = egl.eglCreateWindowSurface(display, config, nativeWindow, null)
+   if (surface == null || surface == EGL10.EGL_NO_SURFACE) {
+    val error = egl.eglGetError()
+    throw RuntimeException("Failed to create EGL surface: 0x${error.toString(16)}")
+   }
+   return surface
+  }
+
+  override fun destroySurface(egl: EGL10, display: EGLDisplay, surface: EGLSurface) {
+   activeHdrColorspace = 0
+   egl.eglDestroySurface(display, surface)
+  }
+ }
+}

@@ -1,5 +1,6 @@
 package com.pgeneratorplus.android
 
+import android.graphics.PixelFormat
 import android.opengl.GLSurfaceView
 import android.os.Bundle
 import android.util.Log
@@ -7,6 +8,7 @@ import android.view.KeyEvent
 import android.view.WindowManager
 import androidx.appcompat.app.AppCompatActivity
 import com.pgeneratorplus.android.hdr.HdrController
+import com.pgeneratorplus.android.hdr.HdrEglHelper
 import com.pgeneratorplus.android.model.AppState
 import com.pgeneratorplus.android.model.DrawCommand
 import com.pgeneratorplus.android.network.*
@@ -45,6 +47,7 @@ class PatternActivity : AppCompatActivity() {
 
  private var mode: String = "pgen"
  private var isHdr = false
+ private var hdrEglActive = false
  private var bitDepth = 8
  private var eotf = 0
  private var colorFormat = 0
@@ -53,6 +56,15 @@ class PatternActivity : AppCompatActivity() {
 
  override fun onCreate(savedInstanceState: Bundle?) {
   super.onCreate(savedInstanceState)
+
+  // Parse intent early — we need HDR info before setting up EGL
+  mode = intent.getStringExtra("mode") ?: "pgen"
+  isHdr = intent.getBooleanExtra("hdr", false)
+  bitDepth = intent.getIntExtra("bits", 8)
+  eotf = intent.getIntExtra("eotf", 0)
+  colorFormat = intent.getIntExtra("colorFormat", 0)
+  colorimetry = intent.getIntExtra("colorimetry", 0)
+  quantRange = intent.getIntExtra("quantRange", 0)
 
   // Fullscreen immersive
   window.setFlags(
@@ -70,29 +82,36 @@ class PatternActivity : AppCompatActivity() {
    android.view.View.SYSTEM_UI_FLAG_LAYOUT_STABLE
   )
 
-  // Setup GLSurfaceView
+  // Setup GLSurfaceView — use HDR EGL surface if HDR mode enabled
   glView = GLSurfaceView(this).apply {
    setEGLContextClientVersion(3)
-   setEGLConfigChooser(8, 8, 8, 8, 0, 0) // RGBA8, no depth/stencil
+
+   if (isHdr) {
+    // Request FP16 pixel format for HDR
+    holder.setFormat(PixelFormat.RGBA_F16)
+    // Configure RGBA16F EGL + BT2020_PQ/HLG colorspace
+    hdrEglActive = HdrEglHelper.configureHdrSurface(this, eotf)
+    if (hdrEglActive) {
+     Log.i(TAG, "HDR EGL surface configured (EOTF=$eotf)")
+    } else {
+     Log.w(TAG, "HDR EGL setup failed, falling back to RGBA8")
+     setEGLConfigChooser(8, 8, 8, 8, 0, 0)
+    }
+   } else {
+    setEGLConfigChooser(8, 8, 8, 8, 0, 0) // RGBA8, no depth/stencil
+   }
+
    setRenderer(PatternRenderer())
    renderMode = GLSurfaceView.RENDERMODE_CONTINUOUSLY
   }
   setContentView(glView)
 
-  // Parse intent
-  mode = intent.getStringExtra("mode") ?: "pgen"
-  isHdr = intent.getBooleanExtra("hdr", false)
-  bitDepth = intent.getIntExtra("bits", 8)
-  eotf = intent.getIntExtra("eotf", 0)
-  colorFormat = intent.getIntExtra("colorFormat", 0)
-  colorimetry = intent.getIntExtra("colorimetry", 0)
-  quantRange = intent.getIntExtra("quantRange", 0)
-
   HdrController.keepScreenOn(this, true)
 
   Log.i(TAG, "Starting in $mode mode (${bitDepth}-bit " +
    "${if (isHdr) "HDR" else "SDR"} EOTF=$eotf " +
-   "color=$colorFormat colorimetry=$colorimetry range=$quantRange)")
+   "color=$colorFormat colorimetry=$colorimetry range=$quantRange" +
+   " hdrEgl=$hdrEglActive)")
  }
 
  override fun onResume() {
